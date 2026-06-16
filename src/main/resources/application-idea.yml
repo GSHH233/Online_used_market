@@ -1,0 +1,115 @@
+# IDEA one-click local profile.
+# This profile is designed for the current local debugging setup:
+# - Spring Boot runs on Windows / IDEA
+# - Milvus, Elasticsearch, PostgreSQL, Prometheus, Redis can run in VMware Docker
+# - RabbitMQ can run on Windows localhost
+#
+# Start through the shared IDEA run configuration:
+#   OnlineUsedMarketplaceApplication - idea
+
+server:
+  port: 8080
+
+management:
+  health:
+    redis:
+      enabled: false
+    elasticsearch:
+      enabled: false
+
+spring:
+  datasource:
+    jdbc-url: ${MYSQL_URL:jdbc:mysql://localhost:3306/used_market?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:qwen-plus}
+          temperature: ${OPENAI_TEMPERATURE:0.3}
+      embedding:
+        options:
+          model: ${OPENAI_EMBEDDING_MODEL:text-embedding-v3}
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://192.168.152.128:9200}
+    username: ${ELASTICSEARCH_USERNAME:}
+    password: ${ELASTICSEARCH_PASSWORD:}
+    connection-timeout: 5s
+    socket-timeout: 15s
+
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:5}
+      connect-timeout: 5000ms
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+      password: ${RABBITMQ_PASSWORD:}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    connection-timeout: 5s
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://192.168.152.128:9000}
+  access-key: ${MINIO_ACCESS_KEY:}
+  secret-key: ${MINIO_SECRET_KEY:}
+  bucket-name: ${MINIO_BUCKET:used-market}
+
+jwt:
+  secret: ${JWT_SECRET:change-me-use-env-in-production-32bytes-min}
+  expiration: ${JWT_EXPIRATION_MS:86400000}
+
+ai:
+  knowledge:
+    ingestion:
+      rabbit:
+        enabled: ${KNOWLEDGE_INGESTION_RABBIT_ENABLED:true}
+        max-retries: 2
+        retry-delay-ms: 3000
+        confirm-timeout-ms: 3000
+        consumer-concurrency: 1
+        prefetch: 1
+
+  vector:
+    provider: milvus
+    milvus:
+      host: ${MILVUS_HOST:192.168.152.128}
+      port: ${MILVUS_PORT:19530}
+      collection-name: ${MILVUS_COLLECTION_NAME:ai_knowledge_chunk}
+      dimension: ${MILVUS_DIMENSION:1024}
+      auto-init-collection: ${MILVUS_AUTO_INIT_COLLECTION:true}
+
+  tools:
+    log:
+      file-path: ${AI_LOG_FILE_PATH:logs/app.log}
+    prometheus:
+      enabled: ${AI_PROMETHEUS_ENABLED:true}
+      base-url: ${PROMETHEUS_BASE_URL:http://192.168.152.128:9090}
+      timeout-ms: 5000
+
+  memory-graph:
+    pgsql:
+      enabled: ${MEMORY_GRAPH_PG_ENABLED:true}
+      auto-init: ${MEMORY_GRAPH_PG_AUTO_INIT:true}
+      jdbc-url: ${MEMORY_GRAPH_PG_URL:jdbc:postgresql://192.168.152.128:5432/used_market}
+      username: ${MEMORY_GRAPH_PG_USERNAME:postgres}
+      password: ${MEMORY_GRAPH_PG_PASSWORD:}
+      driver-class-name: org.postgresql.Driver

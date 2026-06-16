@@ -1,0 +1,17 @@
+[
+  {"caseId":"CHAT-001","question":"二手手机标题写“全新未拆封，无发票”会有风险吗？","goldDocIds":[19],"expectedAnswerKeywords":["全新未拆封","发票","凭证","风险"],"shouldReject":false},
+  {"caseId":"CHAT-002","question":"我卖 RTX3060，只写跑分很高，不说矿卡历史可以吗？","goldDocIds":[20],"expectedAnswerKeywords":["RTX3060","矿卡","使用历史","测试"],"shouldReject":false},
+  {"caseId":"CHAT-003","question":"相机镜头有霉斑但不明显，标题能写准新吗？","goldDocIds":[21],"expectedAnswerKeywords":["霉斑","快门","实拍","说明"],"shouldReject":false},
+  {"caseId":"CHAT-004","question":"无人机炸机维修过，但是现在能飞，发布要披露吗？","goldDocIds":[22],"expectedAnswerKeywords":["炸机","维修","电池","飞行"],"shouldReject":false},
+  {"caseId":"CHAT-005","question":"包包没有票，写高仿原单假一赔十可以吗？","goldDocIds":[23],"expectedAnswerKeywords":["高仿","原单","凭证","风险"],"shouldReject":false},
+  {"caseId":"CHAT-006","question":"详情写加微信私下转账更便宜，有风险吗？","goldDocIds":[24],"expectedAnswerKeywords":["微信","私下转账","平台","交易"],"shouldReject":false},
+  {"caseId":"CHAT-007","question":"这个旧耳机应该按原价 0.85 倍卖吗？","goldDocIds":[25],"expectedAnswerKeywords":["证据","成色","配件","无法"],"shouldReject":true},
+  {"caseId":"CHAT-008","question":"未拆封处方药能不能当闲置卖？","goldDocIds":[26],"expectedAnswerKeywords":["处方药","禁售","风险"],"shouldReject":false},
+  {"caseId":"CHAT-009","question":"游戏账号出售怎么避免找回纠纷？","goldDocIds":[27],"expectedAnswerKeywords":["账号","找回","封号","风险"],"shouldReject":false},
+  {"caseId":"CHAT-010","question":"我只有一个“电脑挺新”的描述，帮我估个精确价格","goldDocIds":[28],"expectedAnswerKeywords":["型号","成色","证据","补充"],"shouldReject":true},
+  {"caseId":"CHAT-011","question":"手机没有发票但有激活截图和实拍，应该怎么降低风险？","goldDocIds":[19],"expectedAnswerKeywords":["激活","实拍","凭证","说明"],"shouldReject":false},
+  {"caseId":"CHAT-012","question":"显卡写无暗病包稳定，这种承诺会不会有问题？","goldDocIds":[20],"expectedAnswerKeywords":["承诺","测试","风险","披露"],"shouldReject":false},
+  {"caseId":"CHAT-013","question":"卖相机忘记快门数，能不能让系统直接生成标题？","goldDocIds":[21],"expectedAnswerKeywords":["快门","补充","成色","证据"],"shouldReject":false},
+  {"caseId":"CHAT-014","question":"无人机私改固件是不是要写出来？","goldDocIds":[22],"expectedAnswerKeywords":["私改固件","飞控","风险","说明"],"shouldReject":false},
+  {"caseId":"CHAT-015","question":"我不知道这个品牌包真假，能写正品保证吗？","goldDocIds":[23],"expectedAnswerKeywords":["正品","鉴定","凭证","不要"],"shouldReject":false}
+]

@@ -4,6 +4,21 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+### Local secrets / runtime files ###
+.env
+.env.*
+!.env.example
+application-local.yml
+application-*.local.yml
+*.log
+logs/
+spring.out.log
+spring.err.log
+
+### Python tooling ###
+__pycache__/
+*.py[cod]
+
 ### STS ###
 .apt_generated
 .classpath
@@ -15,6 +30,7 @@ target/
 
 ### IntelliJ IDEA ###
 .idea
+.run/
 *.iws
 *.iml
 *.ipr
@@ -31,3 +47,15 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Codex / Cursor local workspace ###
+.cursor/
+used_marketplace_frontend/.cursor/
+
+### Frontend build/runtime ###
+used_marketplace_frontend/node_modules/
+used_marketplace_frontend/dist/
+used_marketplace_frontend/dist-ssr/
+used_marketplace_frontend/.vite/
+used_marketplace_frontend/skills-*/
+used_marketplace_frontend/*.local

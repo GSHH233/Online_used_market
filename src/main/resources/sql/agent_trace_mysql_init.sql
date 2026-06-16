@@ -1,0 +1,56 @@
+-- Agent Trace 持久化表初始化脚本
+-- 适用：MySQL 8.x。项目未接入 Flyway/Liquibase，需手动执行。
+
+CREATE TABLE IF NOT EXISTS `ai_agent_trace_run` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `trace_id` varchar(128) NOT NULL COMMENT 'Trace ID',
+  `session_id` varchar(128) DEFAULT NULL COMMENT '会话ID',
+  `agent_type` varchar(32) NOT NULL COMMENT 'REACT/GRAPH',
+  `mode` varchar(32) DEFAULT NULL COMMENT 'USER/INTERNAL',
+  `question` text COMMENT '用户问题',
+  `answer` text COMMENT '最终回答',
+  `status` varchar(32) NOT NULL DEFAULT 'SUCCESS' COMMENT 'SUCCESS/FAILED',
+  `success` tinyint NOT NULL DEFAULT 1 COMMENT '是否成功',
+  `elapsed_ms` bigint DEFAULT NULL COMMENT '整体耗时',
+  `step_count` int NOT NULL DEFAULT 0 COMMENT 'Trace step 数',
+  `observation_count` int NOT NULL DEFAULT 0 COMMENT 'Observation 数',
+  `source_count` int NOT NULL DEFAULT 0 COMMENT '引用来源数',
+  `tools` varchar(1000) DEFAULT NULL COMMENT '使用工具，逗号分隔',
+  `debug_info` varchar(1000) DEFAULT NULL COMMENT '调试信息',
+  `started_at` datetime DEFAULT NULL COMMENT '开始时间',
+  `finished_at` datetime DEFAULT NULL COMMENT '结束时间',
+  `created_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_trace_id` (`trace_id`),
+  KEY `idx_session_id` (`session_id`),
+  KEY `idx_agent_type` (`agent_type`),
+  KEY `idx_status` (`status`),
+  KEY `idx_created_time` (`created_time`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Trace Run 表';
+
+CREATE TABLE IF NOT EXISTS `ai_agent_trace_step` (
+  `id` bigint NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+  `run_id` bigint NOT NULL COMMENT 'Trace Run ID',
+  `trace_id` varchar(128) NOT NULL COMMENT 'Trace ID',
+  `step_index` int NOT NULL DEFAULT 0 COMMENT '步骤序号',
+  `phase` varchar(64) DEFAULT NULL COMMENT '阶段',
+  `tool` varchar(128) DEFAULT NULL COMMENT '工具名',
+  `status` varchar(64) DEFAULT NULL COMMENT '步骤状态',
+  `thought` varchar(1000) DEFAULT NULL COMMENT '思考/原因',
+  `action` text COMMENT '动作/输入',
+  `observation` text COMMENT '观察结果摘要',
+  `elapsed_ms` bigint DEFAULT NULL COMMENT '步骤耗时',
+  `source_doc_ids_json` json DEFAULT NULL COMMENT '来源文档ID',
+  `metadata_json` json DEFAULT NULL COMMENT 'Harness/工具 metadata',
+  `created_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  `updated_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  `is_deleted` tinyint NOT NULL DEFAULT 0 COMMENT '逻辑删除',
+  PRIMARY KEY (`id`),
+  KEY `idx_run_id` (`run_id`),
+  KEY `idx_trace_id` (`trace_id`),
+  KEY `idx_tool` (`tool`),
+  KEY `idx_status` (`status`),
+  KEY `idx_step_index` (`run_id`, `step_index`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='Agent Trace Step 表';

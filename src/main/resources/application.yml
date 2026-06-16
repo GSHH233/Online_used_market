@@ -1,0 +1,220 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: online-used-marketplace
+
+  security:
+    user:
+      name: ${SPRING_SECURITY_USER:swagger}
+      password: ${SPRING_SECURITY_PASSWORD:change-me}
+
+  datasource:
+    jdbc-url: ${MYSQL_URL:jdbc:mysql://localhost:3306/used_market?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+  servlet:
+    multipart:
+      max-file-size: ${MULTIPART_MAX_FILE_SIZE:20MB}
+      max-request-size: ${MULTIPART_MAX_REQUEST_SIZE:20MB}
+
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      chat:
+        options:
+          model: ${OPENAI_CHAT_MODEL:qwen-plus}
+          temperature: ${OPENAI_TEMPERATURE:0.3}
+      embedding:
+        options:
+          model: ${OPENAI_EMBEDDING_MODEL:text-embedding-v3}
+
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+    connection-timeout: ${ELASTICSEARCH_CONNECTION_TIMEOUT:3s}
+    socket-timeout: ${ELASTICSEARCH_SOCKET_TIMEOUT:10s}
+
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:5}
+      connect-timeout: ${REDIS_CONNECT_TIMEOUT:5000ms}
+
+  rabbitmq:
+    host: ${RABBITMQ_HOST:127.0.0.1}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:guest}
+    password: ${RABBITMQ_PASSWORD:guest}
+    virtual-host: ${RABBITMQ_VHOST:/}
+    connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:5s}
+    publisher-confirm-type: correlated
+    publisher-returns: true
+    template:
+      mandatory: true
+    listener:
+      simple:
+        acknowledge-mode: manual
+        default-requeue-rejected: false
+
+  jackson:
+    time-zone: Asia/Shanghai
+    date-format: yyyy-MM-dd HH:mm:ss
+
+mybatis-plus:
+  mapper-locations: classpath:/mappers/*.xml
+  type-aliases-package: org.example.online_used_marketplace.modules.*.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: is_deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+springdoc:
+  api-docs:
+    enabled: ${SPRINGDOC_API_DOCS_ENABLED:true}
+  swagger-ui:
+    enabled: ${SPRINGDOC_SWAGGER_ENABLED:true}
+    path: /swagger-ui.html
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    prometheus:
+      enabled: true
+  metrics:
+    tags:
+      application: online-used-marketplace
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,200ms,500ms,1s,2s,5s
+
+jwt:
+  secret: ${JWT_SECRET:change-me-use-env-in-production-32bytes-min}
+  expiration: ${JWT_EXPIRATION_MS:86400000}
+  token-header: Authorization
+  token-prefix: Bearer
+
+sms:
+  code-expire-seconds: ${SMS_CODE_EXPIRE_SECONDS:300}
+  send-interval-seconds: ${SMS_SEND_INTERVAL_SECONDS:60}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  bucket-name: ${MINIO_BUCKET:used-market}
+
+ai:
+  knowledge:
+    ingestion:
+      rabbit:
+        enabled: ${KNOWLEDGE_INGESTION_RABBIT_ENABLED:true}
+        max-retries: ${KNOWLEDGE_INGESTION_MAX_RETRIES:2}
+        retry-delay-ms: ${KNOWLEDGE_INGESTION_RETRY_DELAY_MS:3000}
+        confirm-timeout-ms: ${KNOWLEDGE_INGESTION_CONFIRM_TIMEOUT_MS:3000}
+        consumer-concurrency: ${KNOWLEDGE_INGESTION_CONSUMER_CONCURRENCY:1}
+        prefetch: ${KNOWLEDGE_INGESTION_PREFETCH:1}
+        recovery-initial-delay-ms: ${KNOWLEDGE_INGESTION_RECOVERY_INITIAL_DELAY_MS:15000}
+        recovery-fixed-delay-ms: ${KNOWLEDGE_INGESTION_RECOVERY_FIXED_DELAY_MS:30000}
+        queued-stale-seconds: ${KNOWLEDGE_INGESTION_QUEUED_STALE_SECONDS:60}
+        running-stale-seconds: ${KNOWLEDGE_INGESTION_RUNNING_STALE_SECONDS:600}
+        recovery-batch-size: ${KNOWLEDGE_INGESTION_RECOVERY_BATCH_SIZE:100}
+
+  chat:
+    memory:
+      enabled: ${AI_CHAT_MEMORY_ENABLED:true}
+      max-turns: ${AI_CHAT_MEMORY_MAX_TURNS:5}
+      ttl-minutes: ${AI_CHAT_MEMORY_TTL_MINUTES:30}
+
+  vector:
+    provider: ${AI_VECTOR_PROVIDER:milvus}
+    milvus:
+      host: ${MILVUS_HOST:localhost}
+      port: ${MILVUS_PORT:19530}
+      collection-name: ${MILVUS_COLLECTION_NAME:ai_knowledge_chunk}
+      dimension: ${MILVUS_DIMENSION:1024}
+      auto-init-collection: ${MILVUS_AUTO_INIT_COLLECTION:true}
+
+  tools:
+    sql:
+      default-limit: ${AI_SQL_DEFAULT_LIMIT:100}
+      max-limit: ${AI_SQL_MAX_LIMIT:500}
+      timeout-ms: ${AI_SQL_TIMEOUT_MS:3000}
+      table-whitelist:
+        - ai_knowledge_doc
+        - ai_knowledge_chunk
+        - ai_knowledge_index_task
+        - ai_agent_trace_run
+        - ai_agent_trace_step
+        - knowledge_doc
+        - knowledge_chunk
+        - knowledge_index_task
+    log:
+      file-path: ${AI_LOG_FILE_PATH:logs/app.log}
+    prometheus:
+      enabled: ${AI_PROMETHEUS_ENABLED:true}
+      base-url: ${PROMETHEUS_BASE_URL:http://localhost:9090}
+      timeout-ms: ${PROMETHEUS_TIMEOUT_MS:3000}
+      default-limit: ${PROMETHEUS_DEFAULT_LIMIT:20}
+      max-limit: ${PROMETHEUS_MAX_LIMIT:100}
+      default-range-minutes: ${PROMETHEUS_DEFAULT_RANGE_MINUTES:30}
+      default-step: ${PROMETHEUS_DEFAULT_STEP:60s}
+
+  agent:
+    harness:
+      enabled: ${AI_AGENT_HARNESS_ENABLED:true}
+      defaults:
+        timeout-ms: ${AI_AGENT_HARNESS_TIMEOUT_MS:3500}
+        max-retries: ${AI_AGENT_HARNESS_MAX_RETRIES:1}
+        retry-backoff-ms: ${AI_AGENT_HARNESS_RETRY_BACKOFF_MS:120}
+        snapshot-enabled: ${AI_AGENT_HARNESS_SNAPSHOT_ENABLED:true}
+        snapshot-ttl-seconds: ${AI_AGENT_HARNESS_SNAPSHOT_TTL_SECONDS:600}
+        fallback-summary: 工具暂时不可用，已触发 Harness 降级
+      tools:
+        mysql_read:
+          timeout-ms: 3000
+          max-retries: 0
+        log_query:
+          timeout-ms: 2500
+          max-retries: 1
+        vector_debug:
+          timeout-ms: 4000
+          max-retries: 1
+        knowledge_search:
+          timeout-ms: 4500
+          max-retries: 1
+        prometheus_query:
+          timeout-ms: 3000
+          max-retries: 1
+          snapshot-enabled: true
+        harness_fault:
+          timeout-ms: 300
+          max-retries: 1
+          retry-backoff-ms: 80
+          snapshot-enabled: true
+          snapshot-ttl-seconds: 600
+          fallback-summary: Harness 故障注入工具已触发降级
+
+  memory-graph:
+    pgsql:
+      enabled: ${MEMORY_GRAPH_PG_ENABLED:true}
+      auto-init: ${MEMORY_GRAPH_PG_AUTO_INIT:true}
+      jdbc-url: ${MEMORY_GRAPH_PG_URL:jdbc:postgresql://localhost:5432/used_market}
+      username: ${MEMORY_GRAPH_PG_USERNAME:postgres}
+      password: ${MEMORY_GRAPH_PG_PASSWORD:}
+      driver-class-name: org.postgresql.Driver

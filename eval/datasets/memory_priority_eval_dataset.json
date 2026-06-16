@@ -1,0 +1,113 @@
+[
+  {
+    "caseId": "MEM-001",
+    "layer": "store",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户偏好：发布手机时喜欢详细列出发票、激活状态、配件和实拍证据。","importance":0.3},
+      {"memoryType":"FACT","content":"用户正在处理二手 iPhone 无发票发布风险。","importance":0.3}
+    ],
+    "l2Query": {"q":"手机 发票 激活 实拍 证据","topK":5,"threshold":0.01,"expectedKeywords":["发票","激活","实拍"],"expectedMemoryTypes":["PREFERENCE"],"minHits":1},
+    "timelineSnapshots": [
+      {"afterTurn":0,"q":"手机 发票 发布","topK":10,"threshold":0.01,"expectedTopics":["phone","evidence"],"maxDuplicateRate":0.2,"maxMemoryCount":10}
+    ]
+  },
+  {
+    "caseId": "MEM-002",
+    "layer": "recall",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户关注 RTX3060 显卡矿卡风险，要求回答里覆盖温度、跑分、使用历史。","importance":0.3},
+      {"memoryType":"PREFERENCE","content":"用户喜欢发布建议用结构化格式输出。","importance":0.8}
+    ],
+    "l2Query": {"q":"3060 显卡 跑分 温度 使用历史","topK":5,"threshold":0.01,"expectedKeywords":["RTX3060","温度","跑分"],"expectedMemoryTypes":["PREFERENCE"],"relevantKeywords":["RTX3060","温度","跑分"],"minKeywordCoverage":0.67,"minMrr":0.5},
+    "postL2Queries": [
+      {"q":"结构化回答 偏好","topK":5,"threshold":0.01,"expectedKeywords":["结构化"],"minHits":1}
+    ]
+  },
+  {
+    "caseId": "MEM-003",
+    "layer": "consolidation",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户偏好：发布相机时必须说明快门次数、镜头霉斑、维修记录。","importance":0.3},
+      {"memoryType":"PREFERENCE","content":"用户偏好：相机发布建议需要补充快门次数、镜头霉斑和样张。","importance":0.3},
+      {"memoryType":"PREFERENCE","content":"用户偏好：发布无人机时要覆盖电池循环、炸机维修、桨叶状态。","importance":0.3}
+    ],
+    "timelineSnapshots": [
+      {"afterTurn":0,"q":"相机 快门 霉斑 样张","topK":10,"threshold":0.01,"expectedTopics":["camera"],"maxDuplicateRate":0.5,"maxEntropyDrift":1.0,"maxMemoryCount":10,"expectedKeywords":["快门","霉斑"]}
+    ],
+    "recallQualityProbes": [
+      {"afterTurn":0,"q":"无人机 电池 炸机 桨叶","topK":5,"threshold":0.01,"relevantKeywords":["无人机","电池","炸机"],"minKeywordCoverage":0.67}
+    ]
+  },
+  {
+    "caseId": "MEM-004",
+    "layer": "context_assembly",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户长期学习 Go 后端开发。","importance":0.8},
+      {"memoryType":"PREFERENCE","content":"用户关注 AI Infra 和 Agent 工程。","importance":0.8},
+      {"memoryType":"PREFERENCE","content":"用户喜欢结构化路线图。","importance":0.8},
+      {"memoryType":"PREFERENCE","content":"用户喜欢动画。","importance":0.3},
+      {"memoryType":"PREFERENCE","content":"用户喜欢炸鸡。","importance":0.3}
+    ],
+    "turns": [
+      {
+        "question":"帮我规划 Go 后端学习路线，最好结合 AI Infra 方向",
+        "expectedKeywords":["Go","AI Infra","结构化"],
+        "contextExpect":{"requirePromptDebug":true,"relevantKeywords":["Go","AI Infra","结构化"],"noiseKeywords":["炸鸡"],"minContextPrecision":0.3,"maxNoiseRate":0.5,"minPromptKeywordCoverage":0.5,"promptExpectedKeywords":["Go","AI Infra"]}
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-005",
+    "layer": "graph_expansion",
+    "memoryGraphExtracts": [
+      {
+        "content":"用户学习 Java，也在学习 k8s，并关注 AI infra。用户喜欢动漫但这和技术路线无关。",
+        "graphExpect":{
+          "expectedEdges":[
+            {"fromAliases":["Java"],"toAliases":["k8s"]},
+            {"fromAliases":["k8s"],"toAliases":["AI infra","ai infra"]}
+          ],
+          "forbiddenEdges":[
+            {"fromAliases":["Java"],"toAliases":["动漫"]},
+            {"fromAliases":["k8s"],"toAliases":["动漫"]}
+          ],
+          "minEdgePrecision":0.5,
+          "minEdgeRecall":0.5,
+          "maxForbiddenEdgeRate":0.5
+        }
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-006",
+    "layer": "priority_conflict",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户偏好：发布建议要详细。","importance":0.3},
+      {"memoryType":"PROFILE","content":"PROFILE|writingStyle=简洁但必须覆盖风险证据","importance":0.8}
+    ],
+    "l2Query": {"q":"写作风格 风险证据 发布建议","topK":5,"threshold":0.01,"expectedKeywords":["PROFILE","风险证据"],"minHits":1}
+  },
+  {
+    "caseId": "MEM-007",
+    "layer": "memory_rag_fusion",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户在手机发布场景中优先关注发票、IMEI 打码和平台担保交易。","importance":0.8}
+    ],
+    "turns": [
+      {"question":"这台手机无发票但有实拍，帮我写发布建议","expectedKeywords":["发票","实拍","担保"]}
+    ],
+    "postL2Queries": [
+      {"q":"手机 IMEI 担保交易 发票","topK":5,"threshold":0.01,"expectedKeywords":["IMEI","担保"],"minHits":1}
+    ]
+  },
+  {
+    "caseId": "MEM-008",
+    "layer": "noise_guard",
+    "l2Writes": [
+      {"memoryType":"PREFERENCE","content":"用户喜欢看动画。","importance":0.3},
+      {"memoryType":"PREFERENCE","content":"用户喜欢吃炸鸡。","importance":0.3},
+      {"memoryType":"PREFERENCE","content":"用户正在优化 RAG 检索评测指标。","importance":0.8}
+    ],
+    "l2Query": {"q":"RAG 检索 评测 指标 recall mrr","topK":5,"threshold":0.01,"expectedKeywords":["RAG","评测"],"forbidKeywords":["炸鸡"],"minHits":1,"maxHits":5}
+  }
+]

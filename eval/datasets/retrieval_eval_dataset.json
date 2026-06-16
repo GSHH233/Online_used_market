@@ -1,0 +1,22 @@
+[
+  {"caseId":"RET-001","question":"二手手机标题写全新未拆封但是没有发票会有风险吗","goldDocIds":[19],"filter":{"riskLevel":"UNKNOWN"}},
+  {"caseId":"RET-002","question":"RTX3060 显卡没说是不是矿卡，只写跑分很高可以吗","goldDocIds":[20]},
+  {"caseId":"RET-003","question":"相机镜头有轻微霉斑，标题只写成色很好会不会被判违规","goldDocIds":[21]},
+  {"caseId":"RET-004","question":"无人机电池循环次数不写，只说续航正常可以发布吗","goldDocIds":[22]},
+  {"caseId":"RET-005","question":"包包写原单高仿假一赔十能不能上架","goldDocIds":[23]},
+  {"caseId":"RET-006","question":"描述里写加微信便宜点、私下转账发货可以吗","goldDocIds":[24]},
+  {"caseId":"RET-007","question":"没有成交记录能不能直接建议便宜 10% 出","goldDocIds":[25]},
+  {"caseId":"RET-008","question":"闲置处方药没有拆封可以卖吗","goldDocIds":[26]},
+  {"caseId":"RET-009","question":"游戏账号带皮肤出售，担心找回风险应该怎么写","goldDocIds":[27]},
+  {"caseId":"RET-010","question":"知识库里没有这个品类时 RAG 应该直接编一个价格吗","goldDocIds":[28]},
+  {"caseId":"RET-011","question":"iPhone 写未激活无票据，买家问凭证怎么处理","goldDocIds":[19]},
+  {"caseId":"RET-012","question":"显卡描述里只放鲁大师跑分，不写温度和使用历史可以吗","goldDocIds":[20]},
+  {"caseId":"RET-013","question":"二手微单快门数忘记了，能不能写准新机","goldDocIds":[21]},
+  {"caseId":"RET-014","question":"无人机炸过机但是修好了，发布时必须写吗","goldDocIds":[22]},
+  {"caseId":"RET-015","question":"球鞋没有鉴定证书，标题写正品保证风险大吗","goldDocIds":[23]},
+  {"caseId":"RET-016","question":"能不能在商品详情里留下手机号让对方线下交易","goldDocIds":[24]},
+  {"caseId":"RET-017","question":"没有市场证据时发布助手能给具体折扣和议价比例吗","goldDocIds":[25]},
+  {"caseId":"RET-018","question":"医疗器械二手闲置可以直接发布吗","goldDocIds":[26]},
+  {"caseId":"RET-019","question":"卖游戏币和外挂辅助工具是不是禁售","goldDocIds":[27]},
+  {"caseId":"RET-020","question":"用户信息缺少型号和成色时回答应该怎么处理","goldDocIds":[28]}
+]

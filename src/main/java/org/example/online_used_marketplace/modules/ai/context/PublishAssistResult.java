@@ -1,8 +1,9 @@
-package org.example.online_used_marketplace.modules.ai.entity;
+package org.example.online_used_marketplace.modules.ai.context;
 
 import lombok.Data;
 import org.example.online_used_marketplace.modules.ai.vo.AssistStepTraceVO;
 import org.example.online_used_marketplace.modules.ai.vo.ProductOptimizeResponseVO;
+import org.example.online_used_marketplace.modules.ai.vo.RagSourceVO;
 import org.example.online_used_marketplace.modules.ai.vo.RiskEvidenceItemVO;
 
 import java.util.List;
@@ -36,6 +37,7 @@ public class PublishAssistResult {
      */
     private String priceSuggestion;
 
+
     /**
      * 是否建议发布
      */
@@ -45,5 +47,5 @@ public class PublishAssistResult {
 
     private List<RiskEvidenceItemVO> riskEvidence;
 
-    private String sources;
+    private List<RagSourceVO> sources;
 }
