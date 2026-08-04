@@ -31,4 +31,12 @@ public class KnowledgeSearchResponseVO {
     private Integer vectorHitCount;
 
     private Integer keywordHitCount;
+
+    private Boolean rewriteUsed;
+
+    private String rewriteTrigger;
+
+    private QueryRewritePlanVO rewritePlan;
+
+    private Long rewriteElapsedMs;
 }

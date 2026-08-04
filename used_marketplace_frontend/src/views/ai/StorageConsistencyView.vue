@@ -94,9 +94,16 @@ async function run() {
       <p v-else class="muted">暂无结果</p>
     </section>
 
-    <section class="panel">
-      <h3>原始结果</h3>
+    <details class="panel">
+      <summary>原始结果</summary>
       <pre>{{ result || '暂无结果' }}</pre>
-    </section>
+    </details>
   </div>
 </template>
+
+<style scoped>
+details summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+</style>

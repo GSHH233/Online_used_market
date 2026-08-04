@@ -10,6 +10,7 @@ import org.springframework.boot.jdbc.DataSourceBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 
 import javax.sql.DataSource;
@@ -25,9 +26,14 @@ public class MySqlDataSourceConfig {
     }
 
     @Bean(name = "dataSource")
-    @Primary
     public DataSource dataSourceAlias(@Qualifier("mysqlDataSource") DataSource mysqlDataSource) {
         return mysqlDataSource;
+    }
+
+    @Bean(name = "mysqlJdbcTemplate")
+    @Primary
+    public JdbcTemplate mysqlJdbcTemplate(@Qualifier("mysqlDataSource") DataSource mysqlDataSource) {
+        return new JdbcTemplate(mysqlDataSource);
     }
 
     @Bean(name = "mysqlSqlSessionFactory")

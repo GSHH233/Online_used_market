@@ -99,7 +99,7 @@ public class KnowledgeStorageConsistencyServiceImpl implements KnowledgeStorageC
     }
 
     private int normalizeLimit(Integer perDocLimit) {
-        return perDocLimit == null || perDocLimit <= 0 ? 200 : Math.min(perDocLimit, 1000);
+        return perDocLimit == null || perDocLimit <= 0 ? 200 : Math.min(perDocLimit, 10_000);
     }
 
     private List<Long> dbChunkIds(Long docId, int limit) {

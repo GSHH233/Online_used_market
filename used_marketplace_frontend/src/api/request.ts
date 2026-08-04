@@ -1,4 +1,8 @@
-import axios, { AxiosError, type AxiosRequestConfig } from 'axios'
+import axios, {
+  AxiosError,
+  type AxiosProgressEvent,
+  type AxiosRequestConfig,
+} from 'axios'
 
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || ''
 const REQUEST_TIMEOUT_MS = 15000
@@ -59,6 +63,7 @@ function normalizeError(error: unknown): ApiError {
     if (status === 401) {
       localStorage.removeItem(TOKEN_KEY)
       localStorage.removeItem('market_role')
+      window.dispatchEvent(new CustomEvent('market:unauthorized'))
       return new ApiError('登录已过期，请重新登录', { status, raw })
     }
 
@@ -81,7 +86,7 @@ function normalizeError(error: unknown): ApiError {
   return new ApiError(message, { raw: error })
 }
 
-async function request<T>(path: string, config: AxiosRequestConfig): Promise<T> {
+export async function request<T>(path: string, config: AxiosRequestConfig): Promise<T> {
   try {
     const response = await http.request({
       url: path,
@@ -93,12 +98,12 @@ async function request<T>(path: string, config: AxiosRequestConfig): Promise<T> 
   }
 }
 
-export function post<T>(path: string, body?: unknown): Promise<T> {
-  return request<T>(path, { method: 'POST', data: body })
+export function post<T>(path: string, body?: unknown, config?: AxiosRequestConfig): Promise<T> {
+  return request<T>(path, { ...config, method: 'POST', data: body })
 }
 
-export function get<T>(path: string): Promise<T> {
-  return request<T>(path, { method: 'GET' })
+export function get<T>(path: string, config?: AxiosRequestConfig): Promise<T> {
+  return request<T>(path, { ...config, method: 'GET' })
 }
 
 export function del<T>(path: string): Promise<T> {
@@ -111,6 +116,28 @@ export function put<T>(path: string, body?: unknown): Promise<T> {
 
 export function patch<T>(path: string, body?: unknown): Promise<T> {
   return request<T>(path, { method: 'PATCH', data: body })
+}
+
+export function upload<T>(
+  path: string,
+  formData: FormData,
+  options?: {
+    signal?: AbortSignal
+    onProgress?: (percent: number, event: AxiosProgressEvent) => void
+  },
+): Promise<T> {
+  return request<T>(path, {
+    method: 'POST',
+    data: formData,
+    signal: options?.signal,
+    onUploadProgress: (event) => {
+      if (!options?.onProgress) return
+      const percent = event.total
+        ? Math.min(100, Math.round((event.loaded * 100) / event.total))
+        : 0
+      options.onProgress(percent, event)
+    },
+  })
 }
 
 export function buildApiUrl(path: string) {

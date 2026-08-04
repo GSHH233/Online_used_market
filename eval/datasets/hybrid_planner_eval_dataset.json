@@ -1,0 +1,90 @@
+[
+  {
+    "caseId": "PLANNER-001",
+    "engine": "react",
+    "mode": "USER",
+    "question": "二手手机无发票写全新未拆封有风险吗",
+    "maxSteps": 5,
+    "expectedTools": ["knowledge_search"],
+    "forbidTools": ["mysql_read", "log_query", "prometheus_query", "vector_debug"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 2
+  },
+  {
+    "caseId": "PLANNER-002",
+    "engine": "react",
+    "mode": "USER",
+    "question": "帮我查数据库里最近的知识文档",
+    "maxSteps": 5,
+    "expectedTools": ["mysql_read"],
+    "expectedDeniedTools": ["mysql_read"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 0
+  },
+  {
+    "caseId": "PLANNER-003",
+    "engine": "react",
+    "mode": "INTERNAL",
+    "question": "先查知识库规则，再结合日志定位商品发布失败原因",
+    "maxSteps": 5,
+    "expectedTools": ["knowledge_search", "log_query"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 2
+  },
+  {
+    "caseId": "PLANNER-004",
+    "engine": "graph",
+    "mode": "INTERNAL",
+    "question": "同时检查接口 P95 指标和错误日志，综合判断延迟原因",
+    "maxSteps": 6,
+    "expectedTools": ["prometheus_query", "log_query"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 2,
+    "requireGraph": true
+  },
+  {
+    "caseId": "PLANNER-005",
+    "engine": "graph",
+    "mode": "INTERNAL",
+    "question": "检查数据库知识文档状态，并结合知识库规则给出结论",
+    "maxSteps": 6,
+    "expectedTools": ["mysql_read", "knowledge_search"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 2,
+    "requireGraph": true
+  },
+  {
+    "caseId": "PLANNER-006",
+    "engine": "graph",
+    "mode": "USER",
+    "question": "我能不能查看系统 Prometheus 指标",
+    "maxSteps": 5,
+    "expectedTools": ["prometheus_query"],
+    "expectedDeniedTools": ["prometheus_query"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 0,
+    "requireGraph": true
+  },
+  {
+    "caseId": "PLANNER-007",
+    "engine": "graph",
+    "mode": "INTERNAL",
+    "question": "检查 Milvus 向量召回和 source 命中情况",
+    "maxSteps": 5,
+    "expectedTools": ["vector_debug"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 2,
+    "requireGraph": true
+  },
+  {
+    "caseId": "PLANNER-008",
+    "engine": "react",
+    "mode": "USER",
+    "question": "结合我的历史偏好，帮我写一段二手相机发布建议",
+    "maxSteps": 5,
+    "expectedTools": ["profile", "knowledge_search"],
+    "forbidTools": ["mysql_read", "log_query", "prometheus_query", "vector_debug"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 2
+  }
+]

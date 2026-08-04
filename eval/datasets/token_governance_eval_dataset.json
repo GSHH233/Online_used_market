@@ -1,0 +1,100 @@
+[
+  {
+    "caseId": "TOKEN-001",
+    "scene": "RAG_CHAT",
+    "sections": [
+      {"name": "回答约束", "content": "只能依据证据回答，不得编造。", "priority": 100, "protectedSection": true},
+      {"name": "本轮问题", "content": "RTX3060 显卡无发票能发布吗？", "priority": 100, "protectedSection": true},
+      {"name": "RAG证据", "content": "无发票商品必须如实披露来源。", "repeat": 20, "priority": 95, "protectedSection": true}
+    ],
+    "expectTrimmed": false,
+    "expectedPresent": ["RTX3060", "无发票商品"]
+  },
+  {
+    "caseId": "TOKEN-002",
+    "scene": "RAG_CHAT",
+    "sections": [
+      {"name": "回答约束", "content": "只能依据证据回答，不得编造。", "priority": 100, "protectedSection": true},
+      {"name": "本轮问题", "content": "二手手机标题写全新未拆封且无发票有风险吗？", "priority": 100, "protectedSection": true},
+      {"name": "RAG证据", "content": "无发票需要披露来源，未拆封不等于官方全新。", "repeat": 80, "priority": 95, "protectedSection": true},
+      {"name": "最近会话上下文", "content": "历史会话包含与当前问题无关的商品讨论。", "repeat": 2500, "priority": 20, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["最近会话上下文"],
+    "expectedPresent": ["二手手机", "未拆封不等于官方全新"]
+  },
+  {
+    "caseId": "TOKEN-003",
+    "scene": "AGENT_FINAL",
+    "sections": [
+      {"name": "规则", "content": "只能基于 Observation 回答。", "priority": 100, "protectedSection": true},
+      {"name": "问题", "content": "为什么接口 P95 延迟升高？", "priority": 100, "protectedSection": true},
+      {"name": "Observation", "content": "Prometheus 显示 P95 升高，日志存在连接池等待。", "repeat": 60, "priority": 95, "protectedSection": true},
+      {"name": "Runtime Context", "content": "历史上下文与表达偏好。", "repeat": 2000, "priority": 30, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["Runtime Context"],
+    "expectedPresent": ["P95", "连接池等待"]
+  },
+  {
+    "caseId": "TOKEN-004",
+    "scene": "AGENT_PLANNER",
+    "sections": [
+      {"name": "约束", "content": "只允许选择白名单只读工具。", "priority": 100, "protectedSection": true},
+      {"name": "问题", "content": "先查日志和指标，再总结原因。", "priority": 100, "protectedSection": true},
+      {"name": "工具描述", "content": "knowledge_search, log_query, prometheus_query, mysql_read。", "repeat": 30, "priority": 90, "protectedSection": true},
+      {"name": "历史", "content": "无关的历史计划。", "repeat": 1800, "priority": 10, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["历史"],
+    "expectedPresent": ["只读工具", "先查日志和指标"]
+  },
+  {
+    "caseId": "TOKEN-005",
+    "scene": "PREFERENCE_EXTRACTION",
+    "sections": [
+      {"name": "规则", "content": "仅抽取用户明确表达的长期偏好。", "priority": 100, "protectedSection": true},
+      {"name": "问题", "content": "以后手机文案都写得简洁一些。", "priority": 100, "protectedSection": true},
+      {"name": "噪声", "content": "与偏好抽取无关的商品事实。", "repeat": 1400, "priority": 10, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["噪声"],
+    "expectedPresent": ["长期偏好", "简洁一些"]
+  },
+  {
+    "caseId": "TOKEN-006",
+    "scene": "SESSION_SUMMARY",
+    "sections": [
+      {"name": "摘要规则", "content": "保留任务、实体和未完成事项。", "priority": 100, "protectedSection": true},
+      {"name": "当前任务", "content": "用户正在发布一台 RTX3060 显卡。", "priority": 100, "protectedSection": true},
+      {"name": "历史轮次", "content": "用户反复讨论不同商品和写作风格。", "repeat": 2200, "priority": 20, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["历史轮次"],
+    "expectedPresent": ["RTX3060", "未完成事项"]
+  },
+  {
+    "caseId": "TOKEN-007",
+    "scene": "QUERY_REWRITE",
+    "sections": [
+      {"name": "改写约束", "content": "必须保留型号、数字和否定词，不新增事实。", "priority": 100, "protectedSection": true},
+      {"name": "原始问题", "content": "RTX3060 没有发票并且维修过，还能发布吗？", "priority": 100, "protectedSection": true},
+      {"name": "无关上下文", "content": "历史检索改写样例。", "repeat": 1500, "priority": 10, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["无关上下文"],
+    "expectedPresent": ["RTX3060", "没有发票"]
+  },
+  {
+    "caseId": "TOKEN-008",
+    "scene": "SEMANTIC_CHUNKING",
+    "sections": [
+      {"name": "切分约束", "content": "只识别连续语义边界，不改写原文。", "priority": 100, "protectedSection": true},
+      {"name": "当前窗口", "content": "第一段描述发布条件。第二段描述风险证据。第三段描述处理建议。", "repeat": 80, "priority": 100, "protectedSection": true},
+      {"name": "窗口外正文", "content": "不应进入本次语义窗口的正文。", "repeat": 2500, "priority": 10, "protectedSection": false}
+    ],
+    "expectTrimmed": true,
+    "expectedTrimmedSections": ["窗口外正文"],
+    "expectedPresent": ["连续语义边界", "风险证据"]
+  }
+]

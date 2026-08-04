@@ -37,6 +37,26 @@ final class ToolAccessGuard {
     }
 
     static void requireAdminEndpoint(String target) {
+        requireAdminPrincipal(target);
+    }
+
+    static Long requireAdminUserId(String target) {
+        return requireAdminPrincipal(target).getUserId();
+    }
+
+    static Long requireInternalUserId(String target) {
+        return requireInternalPrincipal(target).getUserId();
+    }
+
+    static Long requireAuthenticatedUserId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "未认证或登录已过期");
+        }
+        return principal.getUserId();
+    }
+
+    private static UserPrincipal requireAdminPrincipal(String target) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
             throw new BusinessException(ResultCode.UNAUTHORIZED, "未认证或登录已过期");
@@ -46,9 +66,14 @@ final class ToolAccessGuard {
             throw new BusinessException(ResultCode.FORBIDDEN,
                     "当前用户角色无权执行高风险操作：" + target + "，role=" + UserRole.normalize(role));
         }
+        return principal;
     }
 
     private static void requireInternalRole(String target) {
+        requireInternalPrincipal(target);
+    }
+
+    private static UserPrincipal requireInternalPrincipal(String target) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || !(authentication.getPrincipal() instanceof UserPrincipal principal)) {
             throw new BusinessException(ResultCode.UNAUTHORIZED, "未认证或登录已过期");
@@ -58,5 +83,6 @@ final class ToolAccessGuard {
             throw new BusinessException(ResultCode.FORBIDDEN,
                     "当前用户角色无权使用INTERNAL模式：" + target + "，role=" + UserRole.normalize(role));
         }
+        return principal;
     }
 }

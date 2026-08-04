@@ -1,0 +1,159 @@
+[
+  {
+    "caseId": "ING-MD-001",
+    "format": "md",
+    "title": "手机无票发布规则",
+    "content": "# 手机类目\n\n## 发票要求\n\n无发票商品必须如实说明购买凭证状态，不得使用“全新官方”制造误导。\n\n## 标题要求\n\n未拆封只能描述包装状态，不能替代来源证明。",
+    "expectedTerms": ["无发票商品", "未拆封"],
+    "expectedHeadings": ["手机类目", "发票要求"],
+    "requireHeading": true
+  },
+  {
+    "caseId": "ING-MD-002",
+    "format": "md",
+    "title": "显卡披露规则",
+    "content": "# 显卡\n\n## 使用历史\n\n卖家应披露显卡是否长期高负载运行、是否维修以及主要温度表现。\n\n## 证据\n\n跑分截图不能替代使用历史说明。",
+    "expectedTerms": ["使用历史", "跑分截图"],
+    "expectedHeadings": ["显卡", "使用历史"],
+    "requireHeading": true
+  },
+  {
+    "caseId": "ING-MD-003",
+    "format": "md",
+    "title": "站外交易规则",
+    "content": "# 交易安全\n\n## 联系方式\n\n商品详情不得引导买家添加站外联系方式。\n\n## 支付\n\n不得要求买家私下转账，支付与沟通应保留在平台内。",
+    "expectedTerms": ["站外联系方式", "私下转账"],
+    "expectedHeadings": ["交易安全", "联系方式"],
+    "requireHeading": true
+  },
+  {
+    "caseId": "ING-MD-004",
+    "format": "md",
+    "title": "价格忠实度规则",
+    "content": "# 价格建议\n\n没有真实成交数据时，不得编造折扣比例、议价空间或成交承诺。\n\n证据不足时应明确说明缺少的数据。",
+    "expectedTerms": ["不得编造", "证据不足"],
+    "expectedHeadings": ["价格建议"],
+    "requireHeading": true
+  },
+  {
+    "caseId": "ING-MD-005",
+    "format": "md",
+    "title": "多级章节规则",
+    "content": "# 发布规则\n\n## 数码产品\n\n### 相机镜头\n\n霉斑、划痕和维修历史属于影响交易判断的重要信息，应在正文中明确披露。",
+    "expectedTerms": ["霉斑", "维修历史"],
+    "expectedHeadings": ["发布规则", "数码产品", "相机镜头"],
+    "requireHeading": true
+  },
+  {
+    "caseId": "ING-PDF-001",
+    "format": "pdf",
+    "title": "手机凭证披露规则",
+    "content": "手机发布时必须披露发票缺失和激活状态。未拆封包装不能作为商品来源证明，也不能替代购买凭证。",
+    "expectedTerms": ["发票缺失", "激活状态"],
+    "requirePage": true
+  },
+  {
+    "caseId": "ING-PDF-002",
+    "format": "pdf",
+    "title": "显卡使用历史披露规则",
+    "content": "显卡跑分不能替代矿卡历史、维修历史、工作温度和保修凭证的披露，卖家必须如实描述。",
+    "expectedTerms": ["矿卡历史", "维修历史"],
+    "requirePage": true
+  },
+  {
+    "caseId": "ING-PDF-003",
+    "format": "pdf",
+    "title": "站外交易风险规则",
+    "content": "商品详情不得公开私人电话号码，也不得要求买家离开平台直接转账，沟通和支付应保留平台记录。",
+    "expectedTerms": ["电话号码", "直接转账"],
+    "requirePage": true
+  },
+  {
+    "caseId": "ING-PDF-004",
+    "format": "pdf",
+    "title": "医疗商品发布规则",
+    "content": "处方药即使保持未拆封状态，也不能作为普通二手商品发布，相关类目必须遵守平台禁售要求。",
+    "expectedTerms": ["处方药", "未拆封"],
+    "requirePage": true
+  },
+  {
+    "caseId": "ING-PDF-005",
+    "format": "pdf",
+    "title": "知识问答拒答规则",
+    "content": "检索证据不足时，助手必须拒绝没有依据的价格结论和编造的平台规则，并提示用户补充必要信息。",
+    "expectedTerms": ["证据不足", "编造"],
+    "requirePage": true
+  },
+  {
+    "caseId": "ING-DOCX-001",
+    "format": "docx",
+    "title": "无人机维修披露",
+    "content": "无人机发生碰撞、进水或维修时，卖家应披露故障原因、维修范围和当前测试结果。",
+    "expectedTerms": ["维修范围", "测试结果"]
+  },
+  {
+    "caseId": "ING-DOCX-002",
+    "format": "docx",
+    "title": "奢侈品凭证",
+    "content": "没有鉴定证书时不得使用正品保证、专柜同款等确定性表述，应说明凭证缺失。",
+    "expectedTerms": ["鉴定证书", "凭证缺失"]
+  },
+  {
+    "caseId": "ING-DOCX-003",
+    "format": "docx",
+    "title": "账号交易风险",
+    "content": "账号类商品应披露实名、绑定方式、找回可能性和平台是否允许转让。",
+    "expectedTerms": ["找回可能性", "允许转让"]
+  },
+  {
+    "caseId": "ING-DOCX-004",
+    "format": "docx",
+    "title": "相机成色规则",
+    "content": "镜头霉斑、机身磕碰、快门次数和维修记录均属于成色描述的重要字段。",
+    "expectedTerms": ["快门次数", "维修记录"]
+  },
+  {
+    "caseId": "ING-DOCX-005",
+    "format": "docx",
+    "title": "风险证据回传",
+    "content": "发布助手给出风险结论时应附带来源文档与命中片段，证据不足时不得给确定性结论。",
+    "expectedTerms": ["来源文档", "证据不足"]
+  },
+  {
+    "caseId": "ING-LONG-001",
+    "format": "md",
+    "title": "超长规则拆分",
+    "contentRepeat": "本段用于验证超长内容会在句子边界拆分，同时保留必要重叠并保证每个普通正文切片不超过配置的最大Token数量。发布者必须如实披露影响买家判断的信息。 ",
+    "repeat": 160,
+    "expectedTerms": ["超长内容", "如实披露"]
+  },
+  {
+    "caseId": "ING-SHORT-001",
+    "format": "md",
+    "title": "短片段合并",
+    "content": "# 同一章节\n\n规则一：如实描述。\n\n规则二：保留证据。\n\n规则三：不得引流。\n\n规则四：禁止编造。",
+    "expectedTerms": ["如实描述", "禁止编造"],
+    "expectedHeadings": ["同一章节"],
+    "requireHeading": true
+  },
+  {
+    "caseId": "ING-IDEMPOTENT-001",
+    "format": "duplicate",
+    "duplicateOf": "ING-MD-001",
+    "expectedWarning": "IDEMPOTENT_HIT"
+  },
+  {
+    "caseId": "ING-INVALID-001",
+    "format": "invalid-pdf",
+    "title": "伪造PDF",
+    "content": "This is plain text with a pdf extension.",
+    "expectRejected": true
+  },
+  {
+    "caseId": "ING-EMPTY-001",
+    "format": "md",
+    "title": "空文档",
+    "content": "   \n\n",
+    "expectRejected": true
+  }
+]

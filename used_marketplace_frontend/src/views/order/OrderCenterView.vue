@@ -283,10 +283,10 @@ onMounted(load)
       </aside>
     </div>
 
-    <section v-if="auth.isInternal" class="panel">
-      <h3>原始响应</h3>
+    <details v-if="auth.isInternal" class="panel">
+      <summary>原始响应</summary>
       <pre>{{ result || '暂无结果' }}</pre>
-    </section>
+    </details>
   </div>
 </template>
 
@@ -301,6 +301,11 @@ onMounted(load)
   display: flex;
   justify-content: space-between;
   padding: 18px 0 8px;
+}
+
+details summary {
+  cursor: pointer;
+  font-weight: 800;
 }
 
 .order-heading h1 {

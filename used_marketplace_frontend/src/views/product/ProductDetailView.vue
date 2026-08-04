@@ -146,6 +146,8 @@ onMounted(load)
               :key="image"
               :class="{ active: activeImage === index }"
               type="button"
+              :aria-label="`查看第 ${index + 1} 张商品图片`"
+              :aria-current="activeImage === index ? 'true' : undefined"
               @click="activeImage = index"
             >
               <img :src="image" :alt="`${product.title} 图片 ${index + 1}`" />

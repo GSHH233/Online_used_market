@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/ai/storage/debug")
+@RequestMapping({"/api/ai/storage/debug", "/api/ai/knowledge/storage"})
 public class StorageConsistencyDebugController {
 
     private final KnowledgeStorageConsistencyService consistencyService;

@@ -5,6 +5,8 @@ import { aiApi } from '../../api/modules/ai'
 import { useAuthStore } from '../../stores/auth'
 
 type PublishAssistResult = {
+  assistId?: string
+  traceId?: string
   optimizeResult?: {
     optimizedTitle?: string
     optimizedDescription?: string
@@ -53,6 +55,7 @@ const router = useRouter()
 const PRODUCT_DRAFT_KEY = 'ai_publish_product_draft'
 const ASSIST_PREFILL_KEY = 'ai_publish_assist_prefill'
 const prefillNotice = ref('')
+const feedbackNotice = ref('')
 
 const examples = [
   {
@@ -109,6 +112,7 @@ async function run() {
   loading.value = true
   error.value = ''
   showRaw.value = false
+  feedbackNotice.value = ''
   try {
     result.value = (await aiApi.publishAssist({ ...form })) as PublishAssistResult
   } catch (e: any) {
@@ -136,7 +140,7 @@ function conditionLevelFromText(value: string) {
   return 8
 }
 
-function goPublishWithDraft() {
+async function goPublishWithDraft() {
   const optimizedTitle = optimize.value.optimizedTitle || form.title
   const optimizedDescription = optimize.value.optimizedDescription || form.description
   localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify({
@@ -148,7 +152,21 @@ function goPublishWithDraft() {
     riskScore: result.value?.riskScore,
     priceSuggestion: result.value?.priceSuggestion || '',
     riskWarnings: warnings.value,
+    assistId: result.value?.assistId,
+    traceId: result.value?.traceId,
   }))
+  if (result.value?.assistId) {
+    try {
+      await aiApi.publishAssistFeedback(result.value.assistId, {
+        adoptionType: 'APPLIED',
+        adoptedFields: ['title', 'description'],
+        reason: 'user_clicked_go_publish_with_ai_draft',
+      })
+      feedbackNotice.value = '已记录本次 AI 建议采纳'
+    } catch {
+      feedbackNotice.value = '文案已带入发布页，但采纳反馈暂未写入'
+    }
+  }
   router.push('/products/publish')
 }
 
@@ -200,6 +218,7 @@ onMounted(loadAssistPrefill)
         <p class="eyebrow">发布前检查</p>
         <h2>先看风险，再决定怎么写</h2>
         <p class="muted">输入商品情况，系统会给出可发布性、风险提醒和更稳妥的标题描述。</p>
+        <p v-if="feedbackNotice" class="success-msg">{{ feedbackNotice }}</p>
       </div>
       <button class="primary-btn" :disabled="loading" @click="run">
         {{ loading ? '检查中...' : '检查发布风险' }}

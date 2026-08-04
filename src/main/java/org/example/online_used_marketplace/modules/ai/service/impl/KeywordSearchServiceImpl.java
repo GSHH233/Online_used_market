@@ -110,6 +110,7 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
             source.setEffectiveTo(doc.getEffectiveTo());
             source.setDocStatus(doc.getDocStatus());
             source.setDisabledReason(doc.getDisabledReason());
+            source.setIndexVersion(doc.getIndexVersion());
             out.add(source);
         }
         return out;
@@ -144,7 +145,11 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
             String effectiveTo = metadata == null ? "" : safe(metadata.getEffectiveTo());
             String docStatus = metadata == null ? "" : safe(metadata.getDocStatus());
             String disabledReason = metadata == null ? "" : safe(metadata.getDisabledReason());
-            String corpus = (docTitle + " " + safe(row.getContent()) + " " + sourceUri + " " + sourceType).toLowerCase(Locale.ROOT);
+            String indexVersion = metadata == null ? "" : safe(metadata.getIndexVersion());
+            String headings = metadata == null || metadata.getHeadingPath() == null
+                    ? "" : String.join(" ", metadata.getHeadingPath());
+            String corpus = (docTitle + " " + headings + " " + safe(row.getContent())
+                    + " " + sourceUri + " " + sourceType).toLowerCase(Locale.ROOT);
 
             double matched = 0D;
             double total = 0D;
@@ -173,6 +178,7 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
             vo.setEffectiveTo(effectiveTo);
             vo.setDocStatus(docStatus);
             vo.setDisabledReason(disabledReason);
+            vo.setIndexVersion(indexVersion);
             scored.add(vo);
         }
 

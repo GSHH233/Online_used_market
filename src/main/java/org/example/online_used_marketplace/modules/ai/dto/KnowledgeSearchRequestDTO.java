@@ -28,4 +28,9 @@ public class KnowledgeSearchRequestDTO {
     private KnowledgeSearchFilterDTO filter;
 
     private RetrievalMode mode = RetrievalMode.HYBRID;
+
+    /**
+     * Evaluation/debug switch. Production callers normally leave it enabled.
+     */
+    private Boolean rewriteEnabled = true;
 }

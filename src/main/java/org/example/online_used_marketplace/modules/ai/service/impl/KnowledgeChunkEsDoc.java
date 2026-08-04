@@ -54,4 +54,7 @@ public class KnowledgeChunkEsDoc {
 
     @Field(type = FieldType.Text)
     private String disabledReason;
+
+    @Field(type = FieldType.Keyword)
+    private String indexVersion;
 }

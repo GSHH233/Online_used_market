@@ -1,0 +1,14 @@
+[
+  {"caseId":"CONTROL-001","requirementIds":["APPROVAL-AC-001"],"scenario":"create_plan"},
+  {"caseId":"CONTROL-002","requirementIds":["APPROVAL-AC-001"],"scenario":"execute_before_approval_denied"},
+  {"caseId":"CONTROL-003","requirementIds":["APPROVAL-AC-001"],"scenario":"internal_approve_denied"},
+  {"caseId":"CONTROL-004","requirementIds":["APPROVAL-AC-001"],"scenario":"admin_approve"},
+  {"caseId":"CONTROL-005","requirementIds":["APPROVAL-AC-002","APPROVAL-AC-003"],"scenario":"execute_approved_snapshot","maxLatencyMs":15000},
+  {"caseId":"CONTROL-006","requirementIds":["APPROVAL-AC-002"],"scenario":"snapshot_params_unchanged"},
+  {"caseId":"CONTROL-007","requirementIds":["APPROVAL-AC-001"],"scenario":"admin_reject"},
+  {"caseId":"CONTROL-008","requirementIds":["APPROVAL-AC-001"],"scenario":"execute_rejected_denied"},
+  {"caseId":"CONTROL-009","requirementIds":["SECURITY-01"],"scenario":"legacy_repair_blocked"},
+  {"caseId":"CONTROL-010","requirementIds":["SECURITY-01"],"scenario":"legacy_runbook_blocked"},
+  {"caseId":"CONTROL-011","requirementIds":["APPROVAL-AC-001"],"scenario":"user_create_denied"},
+  {"caseId":"CONTROL-012","requirementIds":["APPROVAL-AC-001"],"scenario":"high_risk_batch_manual_only"}
+]

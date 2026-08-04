@@ -233,6 +233,7 @@ def main() -> int:
     lines.append("```json")
     lines.append(json.dumps(rows, ensure_ascii=False, indent=2))
     lines.append("```")
+    report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"written to {report_path}")
     return 0 if success_count == len(rows) else 1

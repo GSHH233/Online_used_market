@@ -6,14 +6,24 @@ import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.agent.AgentTool;
 import org.example.online_used_marketplace.modules.ai.agent.AgentToolRegistry;
+import org.example.online_used_marketplace.modules.ai.agent.planner.AgentPlan;
+import org.example.online_used_marketplace.modules.ai.agent.planner.AgentPlanStep;
+import org.example.online_used_marketplace.modules.ai.agent.planner.AgentReplanDecision;
+import org.example.online_used_marketplace.modules.ai.agent.planner.HybridAgentPlanner;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContext;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContextBuilder;
+import org.example.online_used_marketplace.modules.ai.agent.runtime.GraphExecutionOptions;
 import org.example.online_used_marketplace.modules.ai.dto.GraphAgentRequestDTO;
 import org.example.online_used_marketplace.modules.ai.agent.harness.ToolExecutionHarness;
 import org.example.online_used_marketplace.modules.ai.agent.harness.ToolExecutionResult;
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
 import org.example.online_used_marketplace.modules.ai.service.GraphReactAgentService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
+import org.example.online_used_marketplace.modules.ai.service.TokenGovernanceService;
+import org.example.online_used_marketplace.modules.ai.token.TokenBudgetResult;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenPromptSection;
+import org.example.online_used_marketplace.modules.ai.token.TokenScene;
 import org.example.online_used_marketplace.modules.ai.vo.AgentGraphNodeVO;
 import org.example.online_used_marketplace.modules.ai.vo.AgentTraceStepVO;
 import org.example.online_used_marketplace.modules.ai.vo.GraphAgentResponseVO;
@@ -52,9 +62,17 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
     private final ChatGenerationService chatGenerationService;
     private final SessionSummaryService sessionSummaryService;
     private final AgentRuntimeContextBuilder runtimeContextBuilder;
+    private final HybridAgentPlanner hybridAgentPlanner;
+    private final TokenGovernanceService tokenGovernanceService;
 
     @Override
     public GraphAgentResponseVO run(GraphAgentRequestDTO request) {
+        return run(request, GraphExecutionOptions.empty());
+    }
+
+    @Override
+    public GraphAgentResponseVO run(GraphAgentRequestDTO request, GraphExecutionOptions options) {
+        GraphExecutionOptions executionOptions = options == null ? GraphExecutionOptions.empty() : options;
         validate(request);
         long start = System.currentTimeMillis();
         String question = request.getQuestion().trim();
@@ -68,26 +86,73 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
         response.setMode(mode);
 
         AgentRuntimeContext runtimeContext = runtimeContextBuilder.build("graph", request.getSessionId(), traceId, mode, question, maxSteps);
-        List<AgentGraphNodeVO> graph = planGraph(question, runtimeContext, traceId, maxSteps);
+        AgentPlan generatedPlan = hybridAgentPlanner.plan(question, runtimeContext, traceId, mode, maxSteps);
+        List<AgentGraphNodeVO> graph = planGraph(generatedPlan.getSteps(), "");
+        String finalDependency = "observation_merge";
         response.setGraph(graph);
+        executionOptions.getObserver().onPlan(traceId, graph);
         Map<String, Object> planMetadata = new LinkedHashMap<>();
         planMetadata.put("availableTools", toolRegistry.names());
-        planMetadata.put("planner", "rule_dag");
+        planMetadata.put("planner", generatedPlan.getPlannerType());
+        planMetadata.put("reason", generatedPlan.getReason());
+        planMetadata.put("fallback", generatedPlan.isFallback());
+        planMetadata.put("validationWarnings", generatedPlan.getValidationWarnings());
         planMetadata.put("runtimeContext", runtimeContext.safeMetadata());
         addTrace(response, "graph_plan", null, "SUCCESS", "根据问题生成DAG任务图",
                 "nodes=" + graph.stream().map(AgentGraphNodeVO::getNodeId).toList(),
-                "已生成规则版DAG执行计划", 0L, List.of(),
+                "已生成混合 Planner DAG 执行计划", 0L, List.of(),
                 planMetadata);
 
-        executeGraph(response, graph, mode, runtimeContext, question);
+        executeGraph(response, graph, mode, runtimeContext, question, executionOptions);
+        int executedToolCount = (int) graph.stream().filter(one -> "TOOL".equals(one.getType())).count();
+        Set<String> usedTools = new java.util.LinkedHashSet<>();
+        graph.stream().filter(one -> "TOOL".equals(one.getType()))
+                .map(AgentGraphNodeVO::getTool).filter(StringUtils::hasText).forEach(usedTools::add);
+        int replanRounds = 0;
+        for (int round = 1; round <= hybridAgentPlanner.maxReplans() && executedToolCount < maxSteps; round++) {
+            AgentReplanDecision decision = hybridAgentPlanner.replan(
+                    question, runtimeContext, traceId, mode, response.getObservations(),
+                    usedTools, maxSteps - executedToolCount, round
+            );
+            if (!decision.isReplan()) {
+                addTrace(response, "graph_replan", null, "SKIPPED", decision.getReason(),
+                        "round=" + round, "无需追加DAG节点", 0L, List.of(),
+                        Map.of("round", round, "validationWarnings", decision.getValidationWarnings()));
+                break;
+            }
+
+            replanRounds++;
+            List<AgentGraphNodeVO> fragment = planGraph(decision.getSteps(), "r" + round + "_");
+            finalDependency = "r" + round + "_observation_merge";
+            graph.addAll(fragment);
+            response.setGraph(graph);
+            executionOptions.getObserver().onPlan(traceId, graph);
+            addTrace(response, "graph_replan", null, "SUCCESS", decision.getReason(),
+                    "nodes=" + fragment.stream().map(AgentGraphNodeVO::getNodeId).toList(),
+                    "Observation 触发有限动态 Replan", 0L, List.of(),
+                    Map.of("round", round, "remainingSteps", maxSteps - executedToolCount,
+                            "validationWarnings", decision.getValidationWarnings()));
+            executeGraph(response, fragment, mode, runtimeContext, question, executionOptions);
+            for (AgentPlanStep step : decision.getSteps()) {
+                usedTools.add(step.getTool());
+            }
+            executedToolCount += decision.getSteps().size();
+        }
+
+        AgentGraphNodeVO finalNode = finalNode(finalDependency);
+        graph.add(finalNode);
+        response.setGraph(graph);
+        executionOptions.getObserver().onPlan(traceId, graph);
+        executeSingleNode(response, finalNode, mode, runtimeContext, question, executionOptions);
         response.setSources(extractSources(response.getObservations()));
         if (!StringUtils.hasText(response.getAnswer())) {
             response.setAnswer(fallbackAnswer(response.getObservations()));
         }
         response.setSuccess(response.getGraph().stream().noneMatch(one -> "FAILED".equals(one.getStatus())));
         response.setElapsedMs(System.currentTimeMillis() - start);
-        response.setDebugInfo("planner=rule_dag,nodes=" + graph.size()
+        response.setDebugInfo("planner=" + generatedPlan.getPlannerType() + ",nodes=" + graph.size()
                 + ",toolNodes=" + graph.stream().filter(one -> "TOOL".equals(one.getType())).count()
+                + ",replanRounds=" + replanRounds
                 + ",runtimeContext=enabled,contextChars=" + runtimeContext.getPromptChars()
                 + ",l2=" + runtimeContext.getL2MemoryLines().size()
                 + ",graphMemory=" + runtimeContext.getGraphMemoryLines().size()
@@ -98,56 +163,49 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
         return response;
     }
 
-    private List<AgentGraphNodeVO> planGraph(String question, AgentRuntimeContext runtimeContext, String traceId, int maxSteps) {
-        String q = question.toLowerCase(Locale.ROOT);
-        List<AgentGraphNodeVO> toolNodes = new ArrayList<>();
-
-        if (isPrometheusIntent(q)) {
-            toolNodes.add(toolNode("prometheus_query", "查询 Prometheus 指标 Observation，用于 AIOps 延迟、错误率或资源状态诊断", buildPrometheusInput(question)));
-        }
-
-        if (containsAny(q, "profile", "偏好", "画像", "用户喜欢", "历史偏好")) {
-            toolNodes.add(toolNode("profile", "读取用户 Profile，避免历史偏好覆盖当前事实",
-                    Map.of("userId", runtimeContext.getUserId(), "sessionId", runtimeContext.getSessionId())));
-        }
-        if (containsAny(q, "日志", "报错", "error", "trace")) {
-            toolNodes.add(toolNode("log_query", "查询日志 Observation，用于定位报错或 trace",
-                    Map.of("traceId", traceId, "limit", 50, "windowMinutes", 60)));
-        }
-        if (containsAny(q, "数据库", "mysql", "表", "索引任务", "文档表", "chunk")) {
-            toolNodes.add(toolNode("mysql_read", "查询数据库状态，只执行白名单内只读 SQL",
-                    Map.of("sql", "select id, title, status, created_time from ai_knowledge_doc order by id desc", "limit", 20)));
-        }
-        if (containsAny(q, "向量", "召回", "命中", "检索", "milvus", "source")) {
-            toolNodes.add(toolNode("vector_debug", "查看向量/检索命中，辅助判断召回问题",
-                    Map.of("question", question, "topK", 5)));
-        }
-        if (isKnowledgeSearchIntent(q)
-                || toolNodes.isEmpty()) {
-            toolNodes.add(toolNode("knowledge_search", "检索知识库规则、价格或描述模板作为证据",
-                    Map.of("query", buildKnowledgeQuery(question, runtimeContext), "topK", 5)));
-        }
-
-        List<AgentGraphNodeVO> deduped = dedupTools(toolNodes).stream().limit(maxSteps).toList();
-        List<AgentGraphNodeVO> graph = new ArrayList<>(deduped);
+    private List<AgentGraphNodeVO> planGraph(List<AgentPlanStep> steps, String nodePrefix) {
+        List<AgentGraphNodeVO> toolNodes = (steps == null ? List.<AgentPlanStep>of() : steps).stream()
+                .map(this::toolNode)
+                .toList();
+        List<AgentGraphNodeVO> graph = new ArrayList<>(toolNodes);
+        String suffix = StringUtils.hasText(nodePrefix) ? nodePrefix : "";
 
         AgentGraphNodeVO merge = new AgentGraphNodeVO();
-        merge.setNodeId("observation_merge");
+        merge.setNodeId(suffix + "observation_merge");
         merge.setType("MERGE");
         merge.setThought("等待工具 Observation 完成后进行证据合并");
-        merge.setDependsOn(deduped.stream().map(AgentGraphNodeVO::getNodeId).toList());
+        merge.setDependsOn(toolNodes.stream().map(AgentGraphNodeVO::getNodeId).toList());
         graph.add(merge);
 
-        AgentGraphNodeVO finalNode = new AgentGraphNodeVO();
-        finalNode.setNodeId("final_answer");
-        finalNode.setType("FINAL");
-        finalNode.setThought("基于合并后的 Observation 生成最终回答");
-        finalNode.setDependsOn(List.of("observation_merge"));
-        graph.add(finalNode);
         return graph;
     }
 
-    private void executeGraph(GraphAgentResponseVO response, List<AgentGraphNodeVO> graph, String mode, AgentRuntimeContext runtimeContext, String question) {
+    private AgentGraphNodeVO finalNode(String dependency) {
+        AgentGraphNodeVO finalNode = new AgentGraphNodeVO();
+        finalNode.setNodeId("final_answer");
+        finalNode.setType("FINAL");
+        finalNode.setThought("基于完成 Replan 后的 Observation 生成最终回答");
+        finalNode.setDependsOn(StringUtils.hasText(dependency) ? List.of(dependency) : List.of());
+        return finalNode;
+    }
+
+    private void executeSingleNode(GraphAgentResponseVO response,
+                                   AgentGraphNodeVO node,
+                                   String mode,
+                                   AgentRuntimeContext runtimeContext,
+                                   String question,
+                                   GraphExecutionOptions options) {
+        options.getObserver().onNodeStarted(node);
+        NodeResult result = executeNode(response, node, mode, runtimeContext, question);
+        if (result.observation() != null) {
+            response.getObservations().add(result.observation());
+        }
+        options.getObserver().onNodeFinished(node, result.observation());
+        addTrace(response, result.phase(), result.tool(), result.status(), result.thought(), result.action(),
+                result.observationSummary(), result.elapsedMs(), result.docIds(), result.metadata());
+    }
+
+    private void executeGraph(GraphAgentResponseVO response, List<AgentGraphNodeVO> graph, String mode, AgentRuntimeContext runtimeContext, String question, GraphExecutionOptions options) {
         Map<String, AgentGraphNodeVO> nodeMap = new LinkedHashMap<>();
         Map<String, List<String>> dependents = new HashMap<>();
         Map<String, Integer> indegree = new HashMap<>();
@@ -159,14 +217,35 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
             }
         }
 
+        int processed = 0;
+        Map<String, ToolQueryResultVO> completed = options.getCompletedToolObservations() == null
+                ? Map.of() : options.getCompletedToolObservations();
+        Set<String> restoredNodeIds = new HashSet<>();
+        for (Map.Entry<String, ToolQueryResultVO> entry : completed.entrySet()) {
+            AgentGraphNodeVO node = nodeMap.get(entry.getKey());
+            if (node == null || !"TOOL".equals(node.getType())) {
+                continue;
+            }
+            node.setStatus("SUCCESS");
+            node.setSummary("从 Runtime checkpoint 恢复，跳过重复工具调用");
+            if (entry.getValue() != null) {
+                response.getObservations().add(entry.getValue());
+            }
+            options.getObserver().onNodeFinished(node, entry.getValue());
+            processed++;
+            restoredNodeIds.add(node.getNodeId());
+            for (String next : dependents.getOrDefault(node.getNodeId(), List.of())) {
+                indegree.computeIfPresent(next, (k, v) -> v - 1);
+            }
+        }
+
         ArrayDeque<String> ready = new ArrayDeque<>();
         indegree.forEach((nodeId, count) -> {
-            if (count == 0) {
+            if (count == 0 && !restoredNodeIds.contains(nodeId)) {
                 ready.add(nodeId);
             }
         });
 
-        int processed = 0;
         ExecutorService executor = Executors.newFixedThreadPool(Math.min(4, Math.max(1, graph.size())));
         try {
             while (!ready.isEmpty()) {
@@ -176,7 +255,10 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
                 }
 
                 List<CompletableFuture<NodeResult>> futures = batch.stream()
-                        .map(node -> CompletableFuture.supplyAsync(() -> executeNode(response, node, mode, runtimeContext, question), executor))
+                        .map(node -> CompletableFuture.supplyAsync(() -> {
+                            options.getObserver().onNodeStarted(node);
+                            return executeNode(response, node, mode, runtimeContext, question);
+                        }, executor))
                         .toList();
                 List<NodeResult> results = futures.stream().map(CompletableFuture::join).toList();
                 for (NodeResult result : results) {
@@ -184,6 +266,7 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
                     if (result.observation() != null) {
                         response.getObservations().add(result.observation());
                     }
+                    options.getObserver().onNodeFinished(nodeMap.get(result.nodeId()), result.observation());
                     addTrace(response, result.phase(), result.tool(), result.status(), result.thought(), result.action(),
                             result.observationSummary(), result.elapsedMs(), result.docIds(), result.metadata());
                     for (String next : dependents.getOrDefault(result.nodeId(), List.of())) {
@@ -226,7 +309,7 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
                         node.getSummary(), System.currentTimeMillis() - start, List.of(), Map.of("observationCount", response.getObservations().size()), null);
             }
             if ("FINAL".equals(node.getType())) {
-                String answer = buildFinalAnswer(question, runtimeContext, response.getObservations());
+                String answer = buildFinalAnswer(response.getTraceId(), question, runtimeContext, response.getObservations());
                 response.setAnswer(answer);
                 node.setStatus("SUCCESS");
                 node.setSummary("最终回答已生成");
@@ -321,30 +404,36 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
                 "知识库", "规则", "证据", "rag", "knowledge", "kb", "rule", "rules", "source");
     }
 
-    private String buildFinalAnswer(String question, AgentRuntimeContext runtimeContext, List<ToolQueryResultVO> observations) {
+    private String buildFinalAnswer(String traceId, String question, AgentRuntimeContext runtimeContext,
+                                    List<ToolQueryResultVO> observations) {
         if (shouldUseFastOperationalAnswer(question, observations)) {
             return postProcessAnswer(buildFastOperationalAnswer(observations), question, observations);
         }
         String observationText = summarizeObservations(observations);
         String runtimeContextBlock = runtimeContext == null ? "" : runtimeContext.getPromptBlock();
-        String prompt = """
+        String rules = """
                 你是 Graph ReAct 工具 Agent。请基于 DAG 节点 Observation 回答用户问题。
-                规则：
-                1. 必须说明用了哪些工具和关键观察结果。
-                2. 不要编造 Observation 之外的金额、规则、日志或数据库结果。
-                3. 如果工具被拒绝或失败，明确说明限制，并给出下一步建议。
-                4. 回答保持简洁，优先给结论，尽量控制在 180 字以内。
-                5. 用户问题里明确给出的当前事实必须保留，不要被历史偏好覆盖。
-                6. Runtime Context 只能用于多轮延续、默认参数和表达偏好，不得覆盖本轮用户输入和 Observation。
-                Runtime Context:
-                %s
-                用户问题:
-                %s
-                Observation:
-                %s
-                """.formatted(StringUtils.hasText(runtimeContextBlock) ? runtimeContextBlock : "（无）", question, observationText);
+                1. 必须说明使用的工具和关键观察结果。
+                2. 不得编造 Observation 之外的金额、规则、日志或数据库结果。
+                3. 工具被拒绝或失败时说明限制和下一步建议。
+                4. 优先给结论，控制在 180 字以内。
+                5. Runtime Context 不得覆盖本轮输入和 Observation。
+                """;
+        TokenBudgetResult tokenBudget = tokenGovernanceService.assemble(TokenScene.AGENT_FINAL, List.of(
+                TokenPromptSection.of("回答约束", rules, 100, true),
+                TokenPromptSection.of("本轮问题", question, 100, true),
+                TokenPromptSection.of("Observation", observationText, 95, true),
+                TokenPromptSection.of("Runtime Context",
+                        StringUtils.hasText(runtimeContextBlock) ? runtimeContextBlock : "（无）", 30, false)
+        ));
+        String prompt = tokenBudget.getPrompt();
         try {
-            String generated = chatGenerationService.generate(prompt);
+            String generated = chatGenerationService.generate(TokenGenerationRequest.builder()
+                    .scene(TokenScene.AGENT_FINAL)
+                    .traceId(traceId)
+                    .prompt(prompt)
+                    .budgetResult(tokenBudget)
+                    .build()).getContent();
             return postProcessAnswer(StringUtils.hasText(generated) ? generated : fallbackAnswer(observations), question, observations);
         } catch (Exception ex) {
             return postProcessAnswer(fallbackAnswer(observations), question, observations);
@@ -603,6 +692,13 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
         node.setTool(tool);
         node.setThought(thought);
         node.setInput(input);
+        return node;
+    }
+
+    private AgentGraphNodeVO toolNode(AgentPlanStep step) {
+        AgentGraphNodeVO node = toolNode(step.getTool(), step.getThought(), step.getInput());
+        node.setNodeId(step.getId());
+        node.setDependsOn(step.getDependsOn() == null ? List.of() : step.getDependsOn());
         return node;
     }
 

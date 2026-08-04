@@ -137,16 +137,19 @@ onMounted(load)
     </section>
 
     <nav v-if="items.length" class="market-pagination" aria-label="收藏分页">
-      <button class="icon-btn" type="button" :disabled="loading || page.pageNum <= 1" title="上一页" @click="prev">
+      <button class="icon-btn" type="button" :disabled="loading || page.pageNum <= 1" title="上一页" aria-label="上一页" @click="prev">
         <ChevronLeft :size="19" aria-hidden="true" />
       </button>
       <span>第 {{ page.pageNum }} / {{ pages || 1 }} 页</span>
-      <button class="icon-btn" type="button" :disabled="loading || (pages > 0 && page.pageNum >= pages)" title="下一页" @click="next">
+      <button class="icon-btn" type="button" :disabled="loading || (pages > 0 && page.pageNum >= pages)" title="下一页" aria-label="下一页" @click="next">
         <ChevronRight :size="19" aria-hidden="true" />
       </button>
     </nav>
 
-    <section v-if="auth.isInternal" class="panel"><h3>原始响应</h3><pre>{{ result || '暂无结果' }}</pre></section>
+    <details v-if="auth.isInternal" class="panel">
+      <summary>原始响应</summary>
+      <pre>{{ result || '暂无结果' }}</pre>
+    </details>
   </div>
 </template>
 
@@ -177,6 +180,11 @@ onMounted(load)
   align-items: center;
   display: inline-flex;
   gap: 7px;
+}
+
+details summary {
+  cursor: pointer;
+  font-weight: 800;
 }
 
 .favorite-grid {

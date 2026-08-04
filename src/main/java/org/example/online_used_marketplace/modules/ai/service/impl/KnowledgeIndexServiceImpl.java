@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
+import org.example.online_used_marketplace.modules.ai.config.KnowledgeIngestionProperties;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeRepairBatchRequestDTO;
 import org.example.online_used_marketplace.modules.ai.entity.KnowledgeChunk;
 import org.example.online_used_marketplace.modules.ai.entity.KnowledgeDoc;
@@ -15,16 +16,19 @@ import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskSt
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskStatus;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskType;
 import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeChunkMapper;
+import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeDocMapper;
 import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeIndexTaskMapper;
 import org.example.online_used_marketplace.modules.ai.messaging.KnowledgeIndexTaskMessage;
 import org.example.online_used_marketplace.modules.ai.messaging.KnowledgeIndexTaskPublisher;
 import org.example.online_used_marketplace.modules.ai.service.ChunkingService;
+import org.example.online_used_marketplace.modules.ai.service.ChunkQualityValidator;
 import org.example.online_used_marketplace.modules.ai.service.EmbeddingService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeDocService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeIndexService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeStorageConsistencyService;
 import org.example.online_used_marketplace.modules.ai.service.VectorStore;
 import org.example.online_used_marketplace.modules.ai.vo.ChunkPayloadVO;
+import org.example.online_used_marketplace.modules.ai.vo.ChunkQualityReportVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeIndexTaskVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeMetadata;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeRepairBatchResponseVO;
@@ -38,6 +42,7 @@ import org.springframework.data.elasticsearch.core.IndexOperations;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import io.micrometer.core.instrument.MeterRegistry;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
@@ -57,15 +62,18 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
 
     private static final int DEFAULT_CHUNK_SIZE = 600;
     private static final int DEFAULT_OVERLAP = 100;
-    private static final int DEFAULT_CONSISTENCY_LIMIT = 1000;
+    private static final int DEFAULT_CONSISTENCY_LIMIT = 10_000;
     private static final int VERIFY_MAX_ATTEMPTS = 6;
     private static final long VERIFY_RETRY_INTERVAL_MS = 350L;
     private static final String EMBEDDING_MODEL_NAME = "spring-ai-openai-text-embedding";
     private static final String ES_INDEX_NAME = "ai_knowledge_chunk";
 
     private final KnowledgeDocService knowledgeDocService;
+    private final KnowledgeDocMapper knowledgeDocMapper;
     private final KnowledgeIndexTaskMapper knowledgeIndexTaskMapper;
     private final ChunkingService chunkingService;
+    private final ChunkQualityValidator chunkQualityValidator;
+    private final KnowledgeIngestionProperties ingestionProperties;
     private final KnowledgeChunkMapper knowledgeChunkMapper;
     private final EmbeddingService embeddingService;
     private final VectorStore vectorStore;
@@ -73,6 +81,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
     private final ObjectProvider<ElasticsearchOperations> elasticsearchOperationsProvider;
     private final KnowledgeStorageConsistencyService consistencyService;
     private final ObjectProvider<KnowledgeIndexTaskPublisher> taskPublisherProvider;
+    private final MeterRegistry meterRegistry;
 
     @Override
     public KnowledgeReindexTriggerVO triggerReindex(Long docId) {
@@ -296,6 +305,8 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
             detail.put("verifyAttempts", verified.attempts());
             detail.put("insertedChunks", result.insertedChunks());
             detail.put("esUpserted", result.esUpserted());
+            detail.put("indexVersion", result.indexVersion());
+            detail.put("chunkQuality", result.quality());
 
             if (!Boolean.TRUE.equals(after.getConsistent())) {
                 failTask(taskId, "三存储一致性校验失败", detail);
@@ -318,76 +329,199 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
 
     private IndexResult rebuildIndexes(Long taskId, KnowledgeDoc doc, StorageConsistencyDocVO before) {
         Long docId = doc.getId();
-        updateStage(taskId, KnowledgeIndexTaskStage.CLEANUP);
-        vectorStore.deleteByDocId(docId);
-        deleteEsByDocIdIfAvailable(docId);
-        QueryWrapper<KnowledgeChunk> wrapper = new QueryWrapper<>();
-        wrapper.eq("doc_id", docId);
-        knowledgeChunkMapper.delete(wrapper);
+        String indexVersion = "idx-" + docId + "-" + taskId;
+        List<KnowledgeChunk> oldChunks = selectChunksByDoc(docId);
+        cleanupVersionBestEffort(docId, indexVersion);
 
         updateStage(taskId, KnowledgeIndexTaskStage.SPLIT);
-        List<ChunkPayloadVO> chunkPayloads = chunkingService.split(docId, doc.getContent(), DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP);
+        List<ChunkPayloadVO> chunkPayloads = chunkingService.split(doc, DEFAULT_CHUNK_SIZE, DEFAULT_OVERLAP);
+        ChunkQualityReportVO quality = chunkQualityValidator.validate(
+                doc, chunkPayloads,
+                ingestionProperties.getChunking().getMinTokens(),
+                ingestionProperties.getChunking().getMaxTokens());
+        if (!quality.isValid()) {
+            meterRegistry.counter("rag_ingest_consistency_total", "status", "chunk_quality_rejected")
+                    .increment();
+            throw new BusinessException(ResultCode.INTERNAL_ERROR,
+                    "Chunk quality validation failed: " + String.join(",", quality.getViolations()));
+        }
+        meterRegistry.summary("rag_chunk_count", "strategy",
+                        ingestionProperties.getChunking().getStrategyVersion())
+                .record(quality.getChunkCount());
+        meterRegistry.summary("rag_chunk_tokens", "statistic", "document_max")
+                .record(quality.getTokenMax());
+
         List<KnowledgeChunk> insertedChunks = new ArrayList<>();
-
-        updateStage(taskId, KnowledgeIndexTaskStage.DB_WRITE);
-        for (ChunkPayloadVO payload : chunkPayloads) {
-            if (!StringUtils.hasText(payload.getContent())) {
-                continue;
+        boolean activated = false;
+        try {
+            updateStage(taskId, KnowledgeIndexTaskStage.DB_WRITE);
+            for (ChunkPayloadVO payload : chunkPayloads) {
+                if (!StringUtils.hasText(payload.getContent())) {
+                    continue;
+                }
+                LocalDateTime now = LocalDateTime.now();
+                KnowledgeChunk chunk = new KnowledgeChunk();
+                chunk.setDocId(docId);
+                chunk.setChunkIndex(payload.getChunkIndex());
+                chunk.setContent(payload.getContent());
+                chunk.setTokenCount(payload.getTokenCount());
+                chunk.setIndexVersion(indexVersion);
+                chunk.setIndexStatus("STAGING");
+                KnowledgeMetadata metadata = buildMetadata(doc, payload);
+                metadata.setIndexVersion(indexVersion);
+                chunk.setMetadata(metadata);
+                chunk.setCreatedTime(now);
+                chunk.setUpdatedTime(now);
+                if (knowledgeChunkMapper.insert(chunk) > 0) {
+                    insertedChunks.add(chunk);
+                }
             }
-            LocalDateTime chunkNow = LocalDateTime.now();
-            KnowledgeChunk chunk = new KnowledgeChunk();
-            chunk.setDocId(docId);
-            chunk.setChunkIndex(payload.getChunkIndex());
-            chunk.setContent(payload.getContent());
-            chunk.setTokenCount(payload.getTokenCount());
-            chunk.setMetadata(buildMetadata(doc, payload.getChunkIndex()));
-            chunk.setVectorRefId(null);
-            chunk.setEmbeddingModel(null);
-            chunk.setCreatedTime(chunkNow);
-            chunk.setUpdatedTime(chunkNow);
-            if (knowledgeChunkMapper.insert(chunk) > 0) {
-                insertedChunks.add(chunk);
+            if (insertedChunks.isEmpty()) {
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "No valid chunks were generated");
             }
-        }
-        updateCounts(taskId, insertedChunks.size(), insertedChunks.size(), before.getEsCount(), before.getMilvusCount(), false);
+            updateCounts(taskId, insertedChunks.size(), insertedChunks.size(),
+                    before.getEsCount(), before.getMilvusCount(), false);
 
-        updateStage(taskId, KnowledgeIndexTaskStage.EMBEDDING);
-        List<String> texts = insertedChunks.stream().map(KnowledgeChunk::getContent).toList();
-        List<VectorRecordVO> records = buildVectorRecords(insertedChunks);
-        List<float[]> vectors = embeddingService.embed(texts);
-        if (vectors.size() != insertedChunks.size()) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "创建向量失败");
-        }
-        for (int i = 0; i < records.size(); i++) {
-            records.get(i).setVector(vectors.get(i));
-        }
+            updateStage(taskId, KnowledgeIndexTaskStage.EMBEDDING);
+            List<float[]> vectors = embeddingService.embed(
+                    insertedChunks.stream().map(this::indexedContent).toList());
+            if (vectors == null || vectors.size() != insertedChunks.size()) {
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "Embedding result count does not match chunk count");
+            }
+            List<VectorRecordVO> records = buildVectorRecords(insertedChunks);
+            for (int i = 0; i < records.size(); i++) {
+                records.get(i).setVector(vectors.get(i));
+            }
 
-        updateStage(taskId, KnowledgeIndexTaskStage.VECTOR_WRITE);
-        if (!records.isEmpty() && records.get(0).getVector() != null) {
-            log.info("[KnowledgeIndexJob] upsert vectors, taskId={}, docId={}, count={}, dim={}",
-                    taskId, docId, records.size(), records.get(0).getVector().length);
+            updateStage(taskId, KnowledgeIndexTaskStage.VECTOR_WRITE);
+            vectorStore.upsert(records);
+
+            updateStage(taskId, KnowledgeIndexTaskStage.ES_WRITE);
+            int esUpserted = upsertEsChunksIfAvailable(insertedChunks);
+            refreshEsIndexIfAvailable();
+
+            for (KnowledgeChunk chunk : insertedChunks) {
+                chunk.setEmbeddingModel(resolveEmbeddingModel(doc));
+                chunk.setVectorRefId(chunk.getDocId() + "-" + chunk.getId());
+                chunk.setUpdatedTime(LocalDateTime.now());
+                knowledgeChunkMapper.updateById(chunk);
+            }
+
+            updateStage(taskId, KnowledgeIndexTaskStage.VERIFY);
+            verifyStagedChunks(docId, chunkIds(insertedChunks));
+            activateVersion(doc, indexVersion, insertedChunks);
+            activated = true;
+            meterRegistry.counter("rag_ingest_active_version_switch_total", "status", "success")
+                    .increment();
+
+            updateStage(taskId, KnowledgeIndexTaskStage.CLEANUP);
+            cleanupRetiredChunks(oldChunks);
+            return new IndexResult(insertedChunks.size(), esUpserted, indexVersion, quality);
+        } catch (Exception ex) {
+            if (!activated) {
+                meterRegistry.counter("rag_ingest_active_version_switch_total", "status", "not_switched")
+                        .increment();
+                cleanupChunksBestEffort(insertedChunks);
+            }
+            throw ex;
         }
-        vectorStore.upsert(records);
+    }
 
-        updateStage(taskId, KnowledgeIndexTaskStage.ES_WRITE);
-        int esUpserted = upsertEsChunksIfAvailable(insertedChunks);
-        refreshEsIndexIfAvailable();
+    private List<KnowledgeChunk> selectChunksByDoc(Long docId) {
+        QueryWrapper<KnowledgeChunk> wrapper = new QueryWrapper<>();
+        wrapper.eq("doc_id", docId);
+        wrapper.orderByAsc("id");
+        return knowledgeChunkMapper.selectList(wrapper);
+    }
 
+    private List<Long> chunkIds(List<KnowledgeChunk> chunks) {
+        if (chunks == null) {
+            return List.of();
+        }
+        return chunks.stream()
+                .map(KnowledgeChunk::getId)
+                .filter(id -> id != null && id > 0)
+                .distinct()
+                .toList();
+    }
+
+    private void verifyStagedChunks(Long docId, List<Long> stagedIds) {
+        if (stagedIds.isEmpty()) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "Staging version contains no chunks");
+        }
+        for (int attempt = 1; attempt <= VERIFY_MAX_ATTEMPTS; attempt++) {
+            refreshEsIndexIfAvailable();
+            StorageConsistencyDocVO snapshot = consistencyService.inspectDoc(
+                    docId, Math.max(DEFAULT_CONSISTENCY_LIMIT, stagedIds.size() + 100));
+            if (snapshot.getDbChunkIds().containsAll(stagedIds)
+                    && snapshot.getEsChunkIds().containsAll(stagedIds)
+                    && snapshot.getMilvusChunkIds().containsAll(stagedIds)) {
+                return;
+            }
+            sleepQuietly(VERIFY_RETRY_INTERVAL_MS);
+        }
+        throw new BusinessException(ResultCode.INTERNAL_ERROR,
+                "Staging version failed DB/ES/Milvus presence verification");
+    }
+
+    private void activateVersion(KnowledgeDoc doc,
+                                 String indexVersion,
+                                 List<KnowledgeChunk> insertedChunks) {
+        doc.setActiveIndexVersion(indexVersion);
+        doc.setUpdatedTime(LocalDateTime.now());
+        if (knowledgeDocMapper.updateById(doc) <= 0) {
+            throw new BusinessException(ResultCode.INTERNAL_ERROR, "Failed to switch active index version");
+        }
         for (KnowledgeChunk chunk : insertedChunks) {
-            chunk.setEmbeddingModel(EMBEDDING_MODEL_NAME);
-            chunk.setVectorRefId(chunk.getDocId() + "-" + chunk.getId());
+            chunk.setIndexStatus("ACTIVE");
             chunk.setUpdatedTime(LocalDateTime.now());
             knowledgeChunkMapper.updateById(chunk);
         }
-
-        updateStage(taskId, KnowledgeIndexTaskStage.VERIFY);
-        return new IndexResult(insertedChunks.size(), esUpserted);
+        log.info("[KnowledgeIndexJob] active index version switched, docId={}, version={}, chunks={}",
+                doc.getId(), indexVersion, insertedChunks.size());
     }
 
-    private KnowledgeMetadata buildMetadata(KnowledgeDoc doc, Integer chunkIndex) {
+    private void cleanupRetiredChunks(List<KnowledgeChunk> oldChunks) {
+        List<Long> oldIds = chunkIds(oldChunks);
+        if (oldIds.isEmpty()) {
+            return;
+        }
+        vectorStore.deleteByChunkIds(oldIds);
+        deleteEsByChunkIds(oldIds);
+        knowledgeChunkMapper.deleteBatchIds(oldIds);
+    }
+
+    private void cleanupVersionBestEffort(Long docId, String indexVersion) {
+        QueryWrapper<KnowledgeChunk> wrapper = new QueryWrapper<>();
+        wrapper.eq("doc_id", docId);
+        wrapper.eq("index_version", indexVersion);
+        cleanupChunksBestEffort(knowledgeChunkMapper.selectList(wrapper));
+    }
+
+    private void cleanupChunksBestEffort(List<KnowledgeChunk> chunks) {
+        List<Long> ids = chunkIds(chunks);
+        if (ids.isEmpty()) {
+            return;
+        }
+        try {
+            vectorStore.deleteByChunkIds(ids);
+        } catch (Exception ex) {
+            log.warn("[KnowledgeIndexJob] staged Milvus cleanup failed, chunkIds={}, reason={}",
+                    ids, ex.getMessage());
+        }
+        try {
+            deleteEsByChunkIds(ids);
+        } catch (Exception ex) {
+            log.warn("[KnowledgeIndexJob] staged ES cleanup failed, chunkIds={}, reason={}",
+                    ids, ex.getMessage());
+        }
+        knowledgeChunkMapper.deleteBatchIds(ids);
+    }
+
+    private KnowledgeMetadata buildMetadata(KnowledgeDoc doc, ChunkPayloadVO payload) {
         KnowledgeMetadata metadata = KnowledgeMetadata.of(
                 doc.getId(),
-                chunkIndex,
+                payload.getChunkIndex(),
                 doc.getSourceType(),
                 resolveCategory(doc),
                 resolveRiskLevel(doc),
@@ -401,6 +535,17 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         metadata.setEffectiveTo(doc.getEffectiveTo() == null ? "" : doc.getEffectiveTo().toString());
         metadata.setDocStatus(doc.getStatus());
         metadata.setDisabledReason(doc.getDisabledReason());
+        metadata.setHeadingPath(payload.getHeadingPath());
+        metadata.setPageFrom(payload.getPageFrom());
+        metadata.setPageTo(payload.getPageTo());
+        metadata.setContentType(payload.getContentType());
+        metadata.setSourceStart(payload.getSourceStart());
+        metadata.setSourceEnd(payload.getSourceEnd());
+        metadata.setSemanticTopic(payload.getSemanticTopic());
+        metadata.setChunkStrategyVersion(StringUtils.hasText(doc.getChunkStrategyVersion())
+                ? doc.getChunkStrategyVersion() : "legacy-v1");
+        metadata.setOverlap(payload.getOverlap());
+        metadata.setOverlapChars(payload.getOverlapChars());
         metadata.normalize();
         return metadata;
     }
@@ -411,7 +556,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
             VectorRecordVO record = new VectorRecordVO();
             record.setDocId(chunk.getDocId());
             record.setChunkId(chunk.getId());
-            record.setContent(chunk.getContent());
+            record.setContent(indexedContent(chunk));
             record.setMetadata(chunk.getMetadata());
             records.add(record);
         }
@@ -592,28 +737,21 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         return list;
     }
 
-    private void deleteEsByDocIdIfAvailable(Long docId) {
-        ElasticsearchOperations esOps = elasticsearchOperationsProvider.getIfAvailable();
-        if (esOps == null) {
+    private void deleteEsByChunkIds(List<Long> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
             return;
         }
-        try {
-            ensureEsIndex(esOps);
-            QueryWrapper<KnowledgeChunk> wrapper = new QueryWrapper<>();
-            wrapper.eq("doc_id", docId);
-            List<KnowledgeChunk> oldChunks = knowledgeChunkMapper.selectList(wrapper);
-            if (oldChunks == null || oldChunks.isEmpty()) {
-                return;
-            }
-            for (KnowledgeChunk oldChunk : oldChunks) {
-                if (oldChunk.getId() != null) {
-                    esOps.delete(String.valueOf(oldChunk.getId()), IndexCoordinates.of(ES_INDEX_NAME));
-                }
-            }
-            log.info("[KnowledgeIndexJob] ES old chunks deleted, docId={}, count={}", docId, oldChunks.size());
-        } catch (Exception e) {
-            log.warn("[KnowledgeIndexJob] delete ES old chunks failed, docId={}, reason={}", docId, e.getMessage());
+        ElasticsearchOperations esOps = elasticsearchOperationsProvider.getIfAvailable();
+        if (esOps == null) {
+            throw new IllegalStateException("ElasticsearchOperations is unavailable");
         }
+        ensureEsIndex(esOps);
+        for (Long chunkId : chunkIds) {
+            if (chunkId != null) {
+                esOps.delete(String.valueOf(chunkId), IndexCoordinates.of(ES_INDEX_NAME));
+            }
+        }
+        refreshEsIndexIfAvailable();
     }
 
     private int upsertEsChunksIfAvailable(List<KnowledgeChunk> insertedChunks) {
@@ -636,7 +774,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
                 doc.setId(String.valueOf(chunk.getId()));
                 doc.setChunkId(chunk.getId());
                 doc.setDocId(chunk.getDocId());
-                doc.setContent(chunk.getContent());
+                doc.setContent(indexedContent(chunk));
                 doc.setDocTitle(metadata == null ? "" : safe(metadata.getDocTitle()));
                 doc.setSourceType(metadata == null ? "" : safe(metadata.getSourceType()));
                 doc.setCategory(metadata == null ? "" : safe(metadata.getCategory()));
@@ -648,6 +786,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
                 doc.setEffectiveTo(metadata == null ? "" : safe(metadata.getEffectiveTo()));
                 doc.setDocStatus(metadata == null ? "" : safe(metadata.getDocStatus()));
                 doc.setDisabledReason(metadata == null ? "" : safe(metadata.getDisabledReason()));
+                doc.setIndexVersion(metadata == null ? "" : safe(metadata.getIndexVersion()));
 
                 esOps.save(doc, IndexCoordinates.of(ES_INDEX_NAME));
                 success++;
@@ -702,6 +841,20 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         return StringUtils.hasText(text) ? text : "";
     }
 
+    private String indexedContent(KnowledgeChunk chunk) {
+        KnowledgeMetadata metadata = chunk.getMetadata();
+        if (metadata == null || metadata.getHeadingPath() == null || metadata.getHeadingPath().isEmpty()) {
+            return chunk.getContent();
+        }
+        return String.join(" > ", metadata.getHeadingPath()) + "\n" + chunk.getContent();
+    }
+
+    private String resolveEmbeddingModel(KnowledgeDoc doc) {
+        return StringUtils.hasText(doc.getEmbeddingModel())
+                ? doc.getEmbeddingModel()
+                : EMBEDDING_MODEL_NAME;
+    }
+
     private String taskMessage(KnowledgeIndexTask task,
                                String submitted,
                                String success,
@@ -744,7 +897,10 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         }
     }
 
-    private record IndexResult(int insertedChunks, int esUpserted) {
+    private record IndexResult(int insertedChunks,
+                               int esUpserted,
+                               String indexVersion,
+                               ChunkQualityReportVO quality) {
     }
 
     private record VerifySnapshot(StorageConsistencyDocVO consistency, int attempts) {

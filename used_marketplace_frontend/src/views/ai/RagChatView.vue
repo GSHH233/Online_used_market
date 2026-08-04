@@ -7,7 +7,6 @@ const store = useAiChatStore()
 const auth = useAuthStore()
 const form = reactive({
   question: '二手手机标题写“全新未拆封但无发票”有风险吗？',
-  topK: 5,
 })
 const loading = ref(false)
 const error = ref('')
@@ -20,14 +19,26 @@ const quickQuestions = [
 ]
 
 const hasAnswer = computed(() => store.messages.some((item) => item.role === 'assistant' && item.content.trim()))
-const isStreaming = computed(() => loading.value || store.wsStatus === 'CONNECTING')
+const isStreaming = computed(() => loading.value || store.isStreaming || store.wsStatus === 'CONNECTING')
+const eventSummary = computed(() => {
+  const labels: Record<string, string> = {
+    CHAT_ACK: '请求已接收',
+    CHAT_DELTA: '正在生成回答',
+    CHAT_SOURCE: '已找到规则依据',
+    CHAT_DONE: '回答已完成',
+    CHAT_ERROR: '回答生成失败',
+  }
+  return store.wsEvents
+    .slice(0, 6)
+    .map((event) => labels[event?.type] || String(event?.type || '未知事件'))
+})
 
 function sourceTitle(source: any, index: number) {
   return source?.title || source?.docTitle || source?.sourceTitle || `引用依据 ${index + 1}`
 }
 
 function sourceContent(source: any) {
-  return source?.snippet || source?.content || source?.text || source?.chunk || JSON.stringify(source)
+  return source?.snippet || source?.content || source?.text || source?.chunk || '该条规则暂无可展示摘要'
 }
 
 async function send() {
@@ -37,7 +48,7 @@ async function send() {
   try {
     await store.startWsChat({
       question: form.question,
-      topK: form.topK,
+      topK: 5,
       filter: { sourceType: 'RULE' },
     })
   } catch (e: any) {
@@ -64,8 +75,8 @@ function stop() {
         <h2>不确定能不能写，先问一下</h2>
         <p class="muted">把标题、描述或交易情况发过来，系统会结合平台规则给出解释和建议。</p>
       </div>
-      <span class="status-pill" :class="{ online: store.wsStatus === 'OPEN' }">
-        {{ store.wsStatus === 'OPEN' ? '实时回答中' : '准备就绪' }}
+      <span class="status-pill" :class="{ online: store.wsStatus === 'OPEN' && !isStreaming }">
+        {{ isStreaming ? '实时回答中' : '准备就绪' }}
       </span>
     </section>
 
@@ -103,6 +114,10 @@ function stop() {
         </details>
       </div>
 
+      <p v-if="store.fallbackUsed" class="fallback-note">
+        当前回答由已检索到的规则证据生成，模型服务暂不可用。{{ store.fallbackReason }}
+      </p>
+
       <form class="chat-input" @submit.prevent="send">
         <textarea
           v-model="form.question"
@@ -112,10 +127,6 @@ function stop() {
         />
         <div class="chat-actions">
           <button type="button" class="secondary-btn" :disabled="!hasAnswer && !isStreaming" @click="stop">停止</button>
-          <label v-if="auth.isInternal" class="topk-field">
-            TopK
-            <input v-model.number="form.topK" type="number" min="1" max="10" />
-          </label>
           <button class="primary-btn" :disabled="loading || !form.question.trim()">
             {{ loading ? '发送中...' : '发送' }}
           </button>
@@ -126,20 +137,28 @@ function stop() {
     </section>
 
     <details v-if="auth.isInternal" class="panel debug-details">
-      <summary>调试信息</summary>
-      <div class="grid two-col">
+      <summary>检索过程</summary>
+      <div class="process-grid">
         <div>
-          <h3>Trace</h3>
-          <p>{{ store.currentTraceId || '暂无' }}</p>
-          <p>连接状态：{{ store.wsStatus }}</p>
+          <span>链路编号</span>
+          <strong>{{ store.currentTraceId || '暂无' }}</strong>
         </div>
         <div>
-          <h3>Raw Payload</h3>
-          <pre>{{ store.rawPayload || '暂无' }}</pre>
+          <span>连接状态</span>
+          <strong>{{ store.wsStatus }}</strong>
+        </div>
+        <div>
+          <span>引用规则</span>
+          <strong>{{ store.sources.length }} 条</strong>
+        </div>
+        <div>
+          <span>回答方式</span>
+          <strong>{{ store.responseMode || '实时生成' }}</strong>
         </div>
       </div>
-      <h3>WebSocket Event</h3>
-      <pre>{{ store.wsEvents.slice(0, 8) }}</pre>
+      <ol v-if="eventSummary.length" class="event-list">
+        <li v-for="(event, index) in eventSummary" :key="`${event}-${index}`">{{ event }}</li>
+      </ol>
     </details>
   </div>
 </template>
@@ -207,7 +226,7 @@ function stop() {
 .empty-state {
   padding: 28px;
   border: 1px dashed rgba(23, 19, 17, .22);
-  border-radius: 16px;
+  border-radius: 8px;
   background: rgba(255, 255, 255, .58);
 }
 
@@ -222,7 +241,7 @@ function stop() {
 .message-bubble {
   max-width: min(720px, 88%);
   border: 1px solid rgba(23, 19, 17, .15);
-  border-radius: 16px;
+  border-radius: 8px;
   padding: 12px 14px;
   background: rgba(255, 255, 255, .72);
 }
@@ -245,7 +264,7 @@ function stop() {
 
 .source-item {
   border: 1px solid rgba(23, 19, 17, .14);
-  border-radius: 12px;
+  border-radius: 8px;
   padding: 10px 12px;
   background: rgba(255, 255, 255, .62);
 }
@@ -268,14 +287,43 @@ function stop() {
   flex-wrap: wrap;
 }
 
-.topk-field {
-  width: 96px;
-  margin: 0;
-}
-
 .debug-details summary {
   cursor: pointer;
   font-weight: 700;
+}
+
+.process-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 14px;
+}
+
+.process-grid div {
+  border-left: 2px solid var(--line-strong);
+  display: grid;
+  gap: 4px;
+  padding-left: 10px;
+}
+
+.process-grid span {
+  color: var(--ink-500);
+  font-size: 12px;
+}
+
+.event-list {
+  color: var(--ink-700);
+  display: grid;
+  gap: 5px;
+  margin: 14px 0 0;
+  padding-left: 20px;
+}
+
+.fallback-note {
+  background: rgba(157, 116, 32, 0.08);
+  border-left: 3px solid #9d7420;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 @media (max-width: 760px) {
@@ -286,6 +334,10 @@ function stop() {
 
   .message-bubble {
     max-width: 100%;
+  }
+
+  .process-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 </style>

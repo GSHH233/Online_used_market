@@ -1,0 +1,115 @@
+[
+  {
+    "caseId": "QR-001",
+    "question": "二手手机标题写全新未拆封但没有发票会有风险吗",
+    "goldDocIds": [19, 52],
+    "expectedRewrite": false,
+    "mustKeepTerms": ["全新未拆封", "没有发票"],
+    "negations": ["没有"]
+  },
+  {
+    "caseId": "QR-002",
+    "question": "RTX3060显卡没有说明是否为矿卡，只写跑分很高可以发布吗",
+    "goldDocIds": [51, 53],
+    "expectedRewrite": false,
+    "mustKeepTerms": ["RTX3060", "没有"],
+    "negations": ["没有"]
+  },
+  {
+    "caseId": "QR-003",
+    "question": "这个没票还写全新能发吗，同时买家追问购买凭证时应该怎么解释",
+    "goldDocIds": [19, 52],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentGroups": [
+      ["发布风险", "发布规则", "发货规则", "是否可以发货", "能否发布"],
+      ["购买凭证"]
+    ],
+    "mustKeepTerms": ["没票", "全新"],
+    "negations": []
+  },
+  {
+    "caseId": "QR-004",
+    "question": "无人机炸过机但是已经维修，发布时要不要说明，以及电池循环次数不写是否违规",
+    "goldDocIds": [57],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentTerms": ["维修", "电池循环次数"],
+    "mustKeepTerms": ["无人机", "炸过机", "电池循环次数", "不写"],
+    "negations": ["不"]
+  },
+  {
+    "caseId": "QR-005",
+    "question": "没有市场证据时发布助手能不能给出15%的折扣，并且直接承诺这个价格一定能成交",
+    "goldDocIds": [55],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentTerms": ["折扣", "成交"],
+    "mustKeepTerms": ["没有", "15%", "一定"],
+    "negations": ["没有", "不能"]
+  },
+  {
+    "caseId": "QR-006",
+    "question": "相机镜头轻微霉斑没写，只说成色很好会不会违规",
+    "goldDocIds": [30, 56, 60, 73, 82],
+    "expectedRewrite": false,
+    "mustKeepTerms": ["霉斑", "没写"],
+    "negations": ["没"]
+  },
+  {
+    "caseId": "QR-007",
+    "question": "商品详情留下手机号让对方线下交易，然后要求私下转账发货，这两种做法分别有什么风险",
+    "goldDocIds": [54],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentTerms": ["线下交易", "私下转账"],
+    "mustKeepTerms": ["手机号", "线下交易", "私下转账"],
+    "negations": []
+  },
+  {
+    "caseId": "QR-008",
+    "question": "游戏账号带皮肤出售后可能被找回，应该披露哪些信息，以及外挂辅助工具能不能一起卖",
+    "goldDocIds": [26, 59],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentTerms": ["找回", "外挂辅助工具"],
+    "mustKeepTerms": ["游戏账号", "找回", "外挂辅助工具"],
+    "negations": ["不能"]
+  },
+  {
+    "caseId": "QR-009",
+    "question": "未拆封处方药能不能作为闲置商品发布",
+    "goldDocIds": [27],
+    "expectedRewrite": false,
+    "mustKeepTerms": ["处方药", "未拆封"],
+    "negations": ["不能"]
+  },
+  {
+    "caseId": "QR-010",
+    "question": "包包没有鉴定证书却在标题里写正品保证，同时写假一赔十是否存在风险",
+    "goldDocIds": [20, 58],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentTerms": ["正品保证", "假一赔十"],
+    "mustKeepTerms": ["没有鉴定证书", "正品保证", "假一赔十"],
+    "negations": ["没有"]
+  },
+  {
+    "caseId": "QR-011",
+    "question": "知识库里没有这个品类时，系统不能直接编一个价格，也不能假装有平台规则，对吗",
+    "goldDocIds": [47],
+    "expectedRewrite": true,
+    "expectedMinSubQueries": 2,
+    "expectedIntentTerms": ["价格", "平台规则"],
+    "mustKeepTerms": ["没有", "不能", "价格", "平台规则"],
+    "negations": ["没有", "不能"]
+  },
+  {
+    "caseId": "QR-012",
+    "question": "iPhone 15 Pro 256GB无发票且未激活，标题可以写全新官网吗",
+    "goldDocIds": [19, 52],
+    "expectedRewrite": false,
+    "mustKeepTerms": ["iPhone 15 Pro", "256GB", "无发票", "未激活"],
+    "negations": ["无"]
+  }
+]

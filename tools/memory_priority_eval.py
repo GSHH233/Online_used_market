@@ -598,6 +598,7 @@ def main() -> int:
 
     report = markdown_report(results)
     out_path = Path(args.out) if args.out else Path(f"memory_priority_eval_report_{datetime.now().strftime('%Y%m%d-%H%M%S')}.md")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(report, encoding="utf-8")
     print(f"Report written to {out_path}")
     return 0 if all(r.ok for r in results) else 1

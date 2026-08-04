@@ -35,4 +35,20 @@ public class KnowledgeDocVO {
     private KnowledgeDocStatus status;
 
     private LocalDateTime createdTime;
+
+    private String fileName;
+
+    private String mimeType;
+
+    private String fileHash;
+
+    private String parserType;
+
+    private String parserVersion;
+
+    private String chunkStrategyVersion;
+
+    private String embeddingModel;
+
+    private String activeIndexVersion;
 }

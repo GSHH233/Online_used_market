@@ -496,6 +496,7 @@ def main() -> int:
     else:
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
         out_path = Path(f"aiops_eval_report_{stamp}.md")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text(report, encoding="utf-8")
     print(f"\nReport written: {out_path}")
     return 0

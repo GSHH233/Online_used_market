@@ -13,6 +13,10 @@ import java.util.List;
  */
 @Data
 public class ProductPublishAssistVO {
+    private String assistId;
+
+    private String traceId;
+
     /**
      * 文案优化结果
      */
@@ -46,4 +50,13 @@ public class ProductPublishAssistVO {
      * RAG检索来源（与riskEvidence区分）
      */
     private List<RagSourceVO> sources;
+
+    /**
+     * LLM / RULE_GUARDRAIL / RULE_FALLBACK
+     */
+    private String generationMode;
+
+    private Boolean fallbackUsed = false;
+
+    private String fallbackReason;
 }

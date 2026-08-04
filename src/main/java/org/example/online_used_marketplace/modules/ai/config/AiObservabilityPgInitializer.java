@@ -1,7 +1,6 @@
 package org.example.online_used_marketplace.modules.ai.config;
 
 import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
@@ -13,12 +12,16 @@ import java.nio.charset.StandardCharsets;
 
 @Slf4j
 @Component
-@RequiredArgsConstructor
 public class AiObservabilityPgInitializer {
 
-    @Qualifier("memoryGraphJdbcTemplate")
     private final JdbcTemplate jdbcTemplate;
     private final MemoryGraphPgProperties properties;
+
+    public AiObservabilityPgInitializer(@Qualifier("memoryGraphJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                        MemoryGraphPgProperties properties) {
+        this.jdbcTemplate = jdbcTemplate;
+        this.properties = properties;
+    }
 
     @PostConstruct
     public void initSchema() {

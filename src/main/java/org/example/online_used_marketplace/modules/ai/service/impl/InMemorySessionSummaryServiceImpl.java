@@ -7,6 +7,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
 import org.example.online_used_marketplace.modules.ai.service.L2MemoryService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenScene;
 import org.example.online_used_marketplace.modules.ai.vo.L3SessionSummaryVO;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -136,7 +138,10 @@ public class InMemorySessionSummaryServiceImpl implements SessionSummaryService 
                 %s
                 """.formatted(old == null ? "{}" : safe(old.getPromptBlock()), safe(question), safe(answer));
         try {
-            String raw = chatGenerationService.generate(prompt);
+            String raw = chatGenerationService.generate(TokenGenerationRequest.builder()
+                    .scene(TokenScene.SESSION_SUMMARY)
+                    .prompt(prompt)
+                    .build()).getContent();
             Map<String, Object> map = objectMapper.readValue(sanitizeJson(raw), new TypeReference<Map<String, Object>>() {});
             return fromMap(map);
         } catch (Exception ex) {

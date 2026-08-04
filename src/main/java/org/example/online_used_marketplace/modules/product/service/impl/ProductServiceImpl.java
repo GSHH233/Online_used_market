@@ -8,6 +8,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.product.dto.ProductCreateDTO;
+import org.example.online_used_marketplace.modules.ai.service.PublishAssistFeedbackService;
 import org.example.online_used_marketplace.modules.product.dto.ProductQueryDTO;
 import org.example.online_used_marketplace.modules.product.entity.Product;
 import org.example.online_used_marketplace.modules.product.entity.ProductImage;
@@ -37,6 +38,7 @@ public class ProductServiceImpl implements ProductService {
     private final ProductMapper productMapper;
     private final ProductImageMapper productImageMapper;
     private final UserMapper userMapper;
+    private final PublishAssistFeedbackService publishAssistFeedbackService;
     private static final String DEFAULT_SORT_BY = "publishTime";
     private static final String DEFAULT_SORT_DIRECTION = "desc";
 
@@ -80,6 +82,8 @@ public class ProductServiceImpl implements ProductService {
                 throw new BusinessException(ResultCode.INTERNAL_ERROR, "保存商品图片失败");
             }
         }
+
+        publishAssistFeedbackService.linkProduct(dto.getAssistId(), currentUserId, productId, dto);
 
         return new ProductCreateVO(productId, product.getTitle(), product.getStatus());
     }

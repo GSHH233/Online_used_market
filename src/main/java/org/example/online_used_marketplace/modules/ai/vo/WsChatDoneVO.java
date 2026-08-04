@@ -56,4 +56,29 @@ public class WsChatDoneVO {
      * 记忆上下文组装调试信息，JSON 格式，仅供 eval/debug 使用。
      */
     private String memoryAssemblyDebug;
+
+    /**
+     * LLM / EVIDENCE_FALLBACK / EVIDENCE_REFUSAL / NO_EVIDENCE
+     */
+    private String generationMode;
+
+    private Boolean fallbackUsed = false;
+
+    private String fallbackReason;
+
+    private Integer tokenInputBudget;
+
+    private Integer tokenOutputBudget;
+
+    private Integer originalPromptTokens;
+
+    private Integer promptTokens;
+
+    private Integer completionTokens;
+
+    private Integer totalTokens;
+
+    private Integer trimmedTokens;
+
+    private Boolean tokenUsageEstimated;
 }

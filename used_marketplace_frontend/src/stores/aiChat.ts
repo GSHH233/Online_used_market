@@ -15,6 +15,10 @@ export const useAiChatStore = defineStore('aiChat', () => {
   const wsStatus = ref<WsStatus>('IDLE')
   const wsEvents = ref<any[]>([])
   const rawPayload = ref<any>(null)
+  const isStreaming = ref(false)
+  const responseMode = ref('')
+  const fallbackUsed = ref(false)
+  const fallbackReason = ref('')
   let socket: WebSocket | null = null
   let connecting: Promise<void> | null = null
 
@@ -69,8 +73,17 @@ export const useAiChatStore = defineStore('aiChat', () => {
         if (msg.type === 'CHAT_ACK') currentTraceId.value = msg.requestId
         if (msg.type === 'CHAT_DELTA') appendAssistantDelta(msg.payload?.delta || '')
         if (msg.type === 'CHAT_SOURCE') sources.value.push(msg.payload)
-        if (msg.type === 'CHAT_ERROR') messages.value.push({ role: 'system', content: msg.payload?.message || '回答生成失败' })
-        if (msg.type === 'CHAT_DONE') rawPayload.value = msg.payload
+        if (msg.type === 'CHAT_ERROR') {
+          isStreaming.value = false
+          messages.value.push({ role: 'system', content: msg.payload?.message || '回答生成失败' })
+        }
+        if (msg.type === 'CHAT_DONE') {
+          rawPayload.value = msg.payload
+          responseMode.value = msg.payload?.generationMode || ''
+          fallbackUsed.value = Boolean(msg.payload?.fallbackUsed)
+          fallbackReason.value = msg.payload?.fallbackReason || ''
+          isStreaming.value = false
+        }
       }
     })
 
@@ -91,6 +104,10 @@ export const useAiChatStore = defineStore('aiChat', () => {
     sources.value = []
     rawPayload.value = null
     wsEvents.value = []
+    responseMode.value = ''
+    fallbackUsed.value = false
+    fallbackReason.value = ''
+    isStreaming.value = true
     messages.value.push({ role: 'user', content: question })
     messages.value.push({ role: 'assistant', content: '' })
     sendWs({
@@ -106,6 +123,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
     if (currentTraceId.value) {
       sendWs({ type: 'CHAT_CANCEL', requestId: currentTraceId.value })
     }
+    isStreaming.value = false
   }
 
   function ping(requestId: string) {
@@ -128,6 +146,10 @@ export const useAiChatStore = defineStore('aiChat', () => {
     wsStatus,
     wsEvents,
     rawPayload,
+    isStreaming,
+    responseMode,
+    fallbackUsed,
+    fallbackReason,
     runEval,
     connectWs,
     sendWs,

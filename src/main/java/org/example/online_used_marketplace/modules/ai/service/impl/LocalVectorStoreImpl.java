@@ -79,6 +79,7 @@ public class LocalVectorStoreImpl implements VectorStore {
             source.setEffectiveTo(meta != null ? meta.getEffectiveTo() : null);
             source.setDocStatus(meta != null ? meta.getDocStatus() : null);
             source.setDisabledReason(meta != null ? meta.getDisabledReason() : null);
+            source.setIndexVersion(meta != null ? meta.getIndexVersion() : null);
             candidates.add(source);
         }
 
@@ -93,6 +94,18 @@ public class LocalVectorStoreImpl implements VectorStore {
         }
         String prefix = docId + "_";
         store.entrySet().removeIf(entry -> entry.getKey().startsWith(prefix));
+    }
+
+    @Override
+    public void deleteByChunkIds(List<Long> chunkIds) {
+        if (chunkIds == null || chunkIds.isEmpty()) {
+            return;
+        }
+        Set<Long> ids = new HashSet<>(chunkIds);
+        store.entrySet().removeIf(entry -> {
+            VectorRecordVO record = entry.getValue();
+            return record != null && ids.contains(record.getChunkId());
+        });
     }
 
     @Override

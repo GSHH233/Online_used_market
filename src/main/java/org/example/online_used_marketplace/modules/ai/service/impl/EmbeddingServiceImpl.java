@@ -1,8 +1,10 @@
 package org.example.online_used_marketplace.modules.ai.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
+import org.example.online_used_marketplace.modules.ai.config.EmbeddingBatchProperties;
 import org.example.online_used_marketplace.modules.ai.service.EmbeddingService;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.stereotype.Service;
@@ -12,14 +14,14 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/**
- * 向量生成服务实现
- */
+/** 向量生成服务实现。 */
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class EmbeddingServiceImpl implements EmbeddingService {
 
     private final EmbeddingModel embeddingModel;
+    private final EmbeddingBatchProperties batchProperties;
 
     @Override
     public List<float[]> embed(List<String> texts) {
@@ -32,11 +34,21 @@ public class EmbeddingServiceImpl implements EmbeddingService {
             return Collections.emptyList();
         }
 
-        List<float[]> vectors;
-        try {
-            vectors = embeddingModel.embed(normalized);
-        } catch (Exception e) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "向量模型调用失败");
+        int batchSize = Math.max(1, Math.min(batchProperties.getMaxBatchSize(), 10));
+        List<float[]> vectors = new ArrayList<>(normalized.size());
+        for (int start = 0; start < normalized.size(); start += batchSize) {
+            int end = Math.min(start + batchSize, normalized.size());
+            List<String> batch = normalized.subList(start, end);
+            List<float[]> batchVectors;
+            try {
+                batchVectors = embeddingModel.embed(batch);
+            } catch (Exception e) {
+                log.warn("Embedding model batch failed, range=[{},{}), total={}, reason={}",
+                        start, end, normalized.size(), e.toString());
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "向量模型调用失败");
+            }
+            validateEmbeddingResult(batch, batchVectors);
+            vectors.addAll(batchVectors);
         }
 
         validateEmbeddingResult(normalized, vectors);

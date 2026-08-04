@@ -1,0 +1,202 @@
+[
+  {
+    "caseId": "ING-MD-001",
+    "file": "ing-md-001.md",
+    "format": "md",
+    "title": "手机无票发布规则",
+    "sha256": "1bd513671c5f93cd2de42c609b9b366a6f07fae171f0392c538747e30e11b4b3",
+    "sizeBytes": 214,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-MD-002",
+    "file": "ing-md-002.md",
+    "format": "md",
+    "title": "显卡披露规则",
+    "sha256": "89235db3f82f87e0b788e2b23a47561bf6194c59ccf4e19f95f0333e1e099034",
+    "sizeBytes": 175,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-MD-003",
+    "file": "ing-md-003.md",
+    "format": "md",
+    "title": "站外交易规则",
+    "sha256": "4c1092c22e66463e76986869fff14bd51173e7e11274a939c20078b2034f1b4a",
+    "sizeBytes": 175,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-MD-004",
+    "file": "ing-md-004.md",
+    "format": "md",
+    "title": "价格忠实度规则",
+    "sha256": "5e438393b26ba1b2eca5fc5f9f8ea02f52198022091419c36ff012eee4eb9c34",
+    "sizeBytes": 153,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-MD-005",
+    "file": "ing-md-005.md",
+    "format": "md",
+    "title": "多级章节规则",
+    "sha256": "64d2e61d37b759186ffd3129e9e5fdd65193ce17dbd0798b60d727ac22b9fb2d",
+    "sizeBytes": 153,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-PDF-001",
+    "file": "ing-pdf-001.pdf",
+    "format": "pdf",
+    "title": "手机凭证披露规则",
+    "sha256": "235b39c66b3b11e67b54e9138b40964ea20ac6cd3cbf8844d834b59fa626e165",
+    "sizeBytes": 2518,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-PDF-002",
+    "file": "ing-pdf-002.pdf",
+    "format": "pdf",
+    "title": "显卡使用历史披露规则",
+    "sha256": "e7252e312c447ad3ad131dc436d6f7c7d83652a327580f9416418045430f02b5",
+    "sizeBytes": 2512,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-PDF-003",
+    "file": "ing-pdf-003.pdf",
+    "format": "pdf",
+    "title": "站外交易风险规则",
+    "sha256": "71bdb04dd282e7069f6ddf4603b995453cde6467ad14ff0525a11c8f9294656d",
+    "sizeBytes": 2514,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-PDF-004",
+    "file": "ing-pdf-004.pdf",
+    "format": "pdf",
+    "title": "医疗商品发布规则",
+    "sha256": "c4d53cf349759e0847dd5ab4f82e4fb409cfdf1810a5a406860e05964469a419",
+    "sizeBytes": 2519,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-PDF-005",
+    "file": "ing-pdf-005.pdf",
+    "format": "pdf",
+    "title": "知识问答拒答规则",
+    "sha256": "10c7914d631e5e8f51e8928f67cd94027148662e9bf6b7dfce17de5b66ab504f",
+    "sizeBytes": 2525,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-DOCX-001",
+    "file": "ing-docx-001.docx",
+    "format": "docx",
+    "title": "无人机维修披露",
+    "sha256": "4ad996306e3b8af01c8795465fb7d9c2713e908d56063cbe6e1b3102c576a8b3",
+    "sizeBytes": 1015,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-DOCX-002",
+    "file": "ing-docx-002.docx",
+    "format": "docx",
+    "title": "奢侈品凭证",
+    "sha256": "29a48fb51353a500ddfb0259211d7918cd998990a2ed4b4ea2606866437758f3",
+    "sizeBytes": 1014,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-DOCX-003",
+    "file": "ing-docx-003.docx",
+    "format": "docx",
+    "title": "账号交易风险",
+    "sha256": "53816054a3edf86080125ed0b05b04f1e3dd0c0ea0f45d72a0a105f1a57c5df0",
+    "sizeBytes": 999,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-DOCX-004",
+    "file": "ing-docx-004.docx",
+    "format": "docx",
+    "title": "相机成色规则",
+    "sha256": "bed947f9cb13209172ea6235a87cba063dc9f1c2e1ad4a375067afeba367e764",
+    "sizeBytes": 1005,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-DOCX-005",
+    "file": "ing-docx-005.docx",
+    "format": "docx",
+    "title": "风险证据回传",
+    "sha256": "4c9e188113a4670ff1e953fddf5a90e9c926661c0e571bf64f41519a33d488e5",
+    "sizeBytes": 1017,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-LONG-001",
+    "file": "ing-long-001.md",
+    "format": "md",
+    "title": "超长规则拆分",
+    "sha256": "396367508448ef2ae79c812d387ecaadd572bc1ce1db65c1ad07b68eaafd7920",
+    "sizeBytes": 33600,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-SHORT-001",
+    "file": "ing-short-001.md",
+    "format": "md",
+    "title": "短片段合并",
+    "sha256": "2a99ba0639462b00c7ffea8bde4aff0f4a804399684d7dae3a20ce7adcccef24",
+    "sizeBytes": 130,
+    "expectRejected": false,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-IDEMPOTENT-001",
+    "file": "ing-idempotent-001.md",
+    "format": "duplicate",
+    "title": "ING-IDEMPOTENT-001",
+    "sha256": "1bd513671c5f93cd2de42c609b9b366a6f07fae171f0392c538747e30e11b4b3",
+    "sizeBytes": 214,
+    "expectRejected": false,
+    "duplicateOf": "ING-MD-001"
+  },
+  {
+    "caseId": "ING-INVALID-001",
+    "file": "ing-invalid-001.pdf",
+    "format": "invalid-pdf",
+    "title": "伪造PDF",
+    "sha256": "ba4c8e1b9a5444b3b427200e3a3967149b648c06cd591535898fa4a38c6dc72d",
+    "sizeBytes": 40,
+    "expectRejected": true,
+    "duplicateOf": null
+  },
+  {
+    "caseId": "ING-EMPTY-001",
+    "file": "ing-empty-001.md",
+    "format": "md",
+    "title": "空文档",
+    "sha256": "79189c943471b9370b9de3831708afb992faf39352fe02f1b27b7330af75ca65",
+    "sizeBytes": 5,
+    "expectRejected": true,
+    "duplicateOf": null
+  }
+]

@@ -1,0 +1,17 @@
+[
+  {"caseId":"RUNTIME-001","requirementIds":["RUNTIME-AC-005"],"scenario":"start_normal"},
+  {"caseId":"RUNTIME-002","requirementIds":["RUNTIME-AC-005"],"scenario":"normal_completed"},
+  {"caseId":"RUNTIME-003","requirementIds":["RUNTIME-AC-005"],"scenario":"checkpoint_complete"},
+  {"caseId":"RUNTIME-004","requirementIds":["RUNTIME-AC-005"],"scenario":"list_contains_run"},
+  {"caseId":"RUNTIME-005","requirementIds":["RUNTIME-AC-003"],"scenario":"user_start_denied"},
+  {"caseId":"RUNTIME-006","requirementIds":["RUNTIME-AC-003"],"scenario":"user_detail_denied"},
+  {"caseId":"RUNTIME-007","requirementIds":["RUNTIME-AC-003"],"scenario":"internal_cancel_denied"},
+  {"caseId":"RUNTIME-008","requirementIds":["RUNTIME-AC-003"],"scenario":"pause_running"},
+  {"caseId":"RUNTIME-009","requirementIds":["RUNTIME-AC-001"],"scenario":"resume_paused"},
+  {"caseId":"RUNTIME-010","requirementIds":["RUNTIME-AC-001"],"scenario":"fault_after_node"},
+  {"caseId":"RUNTIME-011","requirementIds":["RUNTIME-AC-001","RUNTIME-AC-002"],"scenario":"concurrent_resume_without_duplicate"},
+  {"caseId":"RUNTIME-012","requirementIds":["RUNTIME-AC-004"],"scenario":"snapshot_replay"},
+  {"caseId":"RUNTIME-013","requirementIds":["RUNTIME-AC-004"],"scenario":"snapshot_replay_no_tool_calls"},
+  {"caseId":"RUNTIME-014","requirementIds":["RUNTIME-AC-004"],"scenario":"live_readonly_replay"},
+  {"caseId":"RUNTIME-015","requirementIds":["RUNTIME-AC-004"],"scenario":"live_replay_calls_tools"}
+]

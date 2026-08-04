@@ -123,6 +123,26 @@ def setup_case(base_url: str, case: dict[str, Any], variables: dict[str, Any], t
         variables[save_as] = event_id
     else:
         failures.append("setupMissingEventId")
+        return failures
+    if bool(setup.get("approveEvent", False)):
+        admin_token = token_for("admin", tokens)
+        if not admin_token:
+            failures.append("missingApprovalToken")
+            return failures
+        approval_body = {"reason": str(setup.get("approvalReason") or "approved by runbook eval")}
+        try:
+            approval_resp, _ = request_json(
+                "POST",
+                base_url.rstrip("/") + f"/api/ai/aiops/events/{event_id}/approve",
+                approval_body,
+                timeout_sec,
+                admin_token,
+            )
+        except Exception as exc:
+            failures.append(f"approvalSetupError:{exc}")
+            return failures
+        if int(approval_resp.get("code") or 0) != 200:
+            failures.append(f"approvalSetupAppCode:{approval_resp.get('code')}")
     return failures
 
 
@@ -458,6 +478,7 @@ def write_report(results: list[RunbookCaseResult], output: Path, run_id: str, do
             f"| {r.case_id} | {str(r.ok).lower()} | {r.app_code} | {r.status} | {r.executed} | "
             f"{r.verification_status} | {r.event_id or ''} | {r.action_id or ''} | {r.latency_ms:.1f} |"
         )
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

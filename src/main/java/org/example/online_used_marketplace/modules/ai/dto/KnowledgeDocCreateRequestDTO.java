@@ -38,4 +38,20 @@ public class KnowledgeDocCreateRequestDTO {
     private LocalDateTime effectiveTo;
 
     private String docVersion = "v1";
+
+    private String fileName;
+
+    private String mimeType;
+
+    private String fileHash;
+
+    private String parserType;
+
+    private String parserVersion;
+
+    private String structureJson;
+
+    private String chunkStrategyVersion;
+
+    private String embeddingModel;
 }

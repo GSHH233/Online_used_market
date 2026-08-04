@@ -16,5 +16,6 @@ public interface VectorStore {
     void upsert(List<VectorRecordVO> records);
     List<RagSourceVO> search(float[] queryVector, int topK, Map<String,Object> filters);
     void deleteByDocId(Long docId);
+    void deleteByChunkIds(List<Long> chunkIds);
     List<Map<String, Object>> debugQueryByDocId(Long docId, Integer limit);
 }

@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterDTO;
+import org.example.online_used_marketplace.modules.ai.event.RagChatOutcomeEvent;
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
 import org.example.online_used_marketplace.modules.ai.service.ConversationMemoryService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
@@ -14,13 +15,20 @@ import org.example.online_used_marketplace.modules.ai.service.L2MemoryService;
 import org.example.online_used_marketplace.modules.ai.service.PreferenceAutofillService;
 import org.example.online_used_marketplace.modules.ai.service.RagChatService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
+import org.example.online_used_marketplace.modules.ai.service.TokenGovernanceService;
 import org.example.online_used_marketplace.modules.ai.service.UserProfileService;
+import org.example.online_used_marketplace.modules.ai.token.TokenBudgetResult;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationResult;
+import org.example.online_used_marketplace.modules.ai.token.TokenPromptSection;
+import org.example.online_used_marketplace.modules.ai.token.TokenScene;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeSearchHitVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeSearchResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.RagSourceVO;
 import org.example.online_used_marketplace.modules.ai.vo.UserProfileVO;
 import org.example.online_used_marketplace.modules.ai.vo.WsChatDoneVO;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -55,7 +63,9 @@ public class RagChatServiceImpl implements RagChatService {
     private final L2MemoryService l2MemoryService;
     private final PreferenceAutofillService preferenceAutofillService;
     private final UserProfileService userProfileService;
+    private final TokenGovernanceService tokenGovernanceService;
     private final ObjectMapper objectMapper;
+    private final ApplicationEventPublisher eventPublisher;
 
     private static final int TOP_N_FOR_AVG = 3;
     private static final double HIGH_CONFIDENCE_SCORE = 0.68D;
@@ -75,7 +85,7 @@ public class RagChatServiceImpl implements RagChatService {
         String memoryUserId = StringUtils.hasText(sessionId) ? sessionId : "anonymous";
 
         Map<String, String> explicitPreferences = extractPreferencesByRule(normalizedQuestion);
-        Map<String, String> llmPreferences = extractPreferencesByLlm(normalizedQuestion);
+        Map<String, String> llmPreferences = extractPreferencesByLlm(normalizedQuestion, traceId);
         Map<String, String> preferenceCandidates = mergePreferences(explicitPreferences, llmPreferences);
 
         String sessionSummary = shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
@@ -122,7 +132,8 @@ public class RagChatServiceImpl implements RagChatService {
         if (hits.isEmpty()) {
             WsChatDoneVO vo = buildEmptyResponse(traceId, searchResp);
             vo.setMemoryAssemblyDebug(memoryAssemblyDebug);
-            return vo;
+            return publishOutcome(vo, normalizedQuestion, sessionId, normalizedTopK,
+                    classifyGapReason(normalizedQuestion, "NO_RETRIEVAL"));
         }
 
         List<Double> scores = hits.stream()
@@ -140,9 +151,16 @@ public class RagChatServiceImpl implements RagChatService {
 
         double lexicalCoverage = calculateLexicalCoverage(normalizedQuestion, hits);
         int multiSourceCount = countDistinctSources(hits);
+        int vectorHitCount = searchResp == null || searchResp.getVectorHitCount() == null ? 0 : searchResp.getVectorHitCount();
         int keywordHitCount = searchResp == null || searchResp.getKeywordHitCount() == null ? 0 : searchResp.getKeywordHitCount();
-        String confidenceLevel = calcConfidenceLevel(top1Score, top2Score, top3AvgScore, lexicalCoverage, multiSourceCount, keywordHitCount, hits);
-        boolean lowConfidence = "LOW".equals(confidenceLevel);
+        String confidenceLevel = calcConfidenceLevel(
+                top1Score, top2Score, top3AvgScore, lexicalCoverage,
+                multiSourceCount, vectorHitCount, keywordHitCount, hits);
+        boolean missingRequiredFields = isMissingFieldsQuestion(normalizedQuestion);
+        boolean lowConfidence = "LOW".equals(confidenceLevel) || missingRequiredFields;
+        if (missingRequiredFields) {
+            confidenceLevel = "LOW";
+        }
 
         List<String> snippets = new ArrayList<>();
         List<RagSourceVO> sources = new ArrayList<>();
@@ -172,49 +190,65 @@ public class RagChatServiceImpl implements RagChatService {
             vo.setConfidenceLevel(confidenceLevel);
             vo.setRetrievalMode(searchResp.getRetrievalMode());
             vo.setRetrievalDebug(searchResp.getDebugInfo());
-            vo.setConfidenceDebug(buildConfidenceDebug(top1Score, top2Score, top3AvgScore, lexicalCoverage, multiSourceCount, keywordHitCount, hits, confidenceLevel));
+            vo.setConfidenceDebug(buildConfidenceDebug(
+                    top1Score, top2Score, top3AvgScore, lexicalCoverage,
+                    multiSourceCount, vectorHitCount, keywordHitCount, hits, confidenceLevel));
             vo.setPreferenceAutofillDebug(preferenceAutofillDebug);
             vo.setMemoryAssemblyDebug(memoryAssemblyDebug);
+            vo.setGenerationMode("EVIDENCE_REFUSAL");
+            vo.setFallbackUsed(false);
+            vo.setFallbackReason("");
             conversationMemoryService.appendTurn(sessionId, normalizedQuestion, vo.getAnswer());
             sessionSummaryService.refreshSummaryIfNeeded(sessionId, normalizedQuestion, vo.getAnswer());
             l2MemoryService.saveMemory(memoryUserId, sessionId, "FACT", normalizedQuestion + " -> " + vo.getAnswer(), 0.3D);
-            return vo;
+            return publishOutcome(vo, normalizedQuestion, sessionId, normalizedTopK,
+                    classifyGapReason(normalizedQuestion, "LOW_CONFIDENCE"));
         }
 
         String context = String.join("\n---\n", snippets);
         String memoryContext = recentContext.isEmpty() ? "（无）" : String.join("\n", recentContext);
         String summaryContext = StringUtils.hasText(sessionSummary) ? sessionSummary : "（无）";
         String l2Context = l2MemoryContext.isEmpty() ? "（无）" : String.join("\n", l2MemoryContext);
-        String prompt = """
-        你是风控与发布助手。只能基于给定证据回答。
-        输出规则:
-        1. 先直接回答用户问题，保持 2-4 句。
-        2. 若证据不足，明确说“无法确定”具体结论或价格，但不要只说无法确定；必须补充证据中已经能确定的风险点、影响因素或操作建议。
-        3. 对价格问题，若不能给出具体金额，也要说明证据里的调价方向和影响因素，例如电池健康、维修、配件、保修、成色、地区行情。
-        4. 严禁编造证据外的金额、百分比、折扣、倍数、价格区间、平台规则或检测结果；若证据没有明确量化值，只能说“下调、扣减、明显低于、参考近期成交价”等方向性判断。
-        5. 用户问题里已经明确给出的商品、配件、缺失项、状态和检测结果必须在回答中复述并纳入建议，例如无原盒、仅主机、充电线、遥控器、桨叶、电池健康、快门次数。
-        6. 若证据要求“配件见图/提供照片/实拍样张/检测截图”，回答必须提醒补图或见图说明。
-        同时你有一个工具参数自动填充规则：当用户未明确给出品牌/预算/成色时，可优先采用用户 Profile 进行默认填充；若用户本轮明确给出，则以本轮为准。Profile 不得覆盖本轮商品事实、RAG证据和风险规则。
-        L3会话任务摘要(KV，优先级低于本轮输入和RAG证据，高于L2长期偏好):
-        %s
-        用户偏好(结构化提取，可用于工具参数自动填充):
-        %s
-        L2长期事实与偏好:
-        %s
-        最近会话上下文:
-        %s
-        证据:
-        %s
-        问题:
-        %s
-        """.formatted(summaryContext, preferencePromptBlock, l2Context, memoryContext, context, normalizedQuestion);
+        String answerRules = """
+                你是风控与发布助手。只能基于给定证据回答。
+                输出规则:
+                1. 先直接回答用户问题，保持 2-4 句。
+                2. 若证据不足，明确说“无法确定”具体结论或价格，同时说明已有风险点和还缺的信息。
+                3. 严禁编造证据外的金额、百分比、折扣、倍数、价格区间、平台规则或检测结果。
+                4. 用户已给出的商品、配件、缺失项、状态和检测结果必须在回答中复述并纳入建议。
+                5. 证据要求补图、实拍样张或检测截图时，必须明确提醒。
+                6. Profile 只用于默认参数，不得覆盖本轮事实、RAG证据和风险规则。
+                """;
+        TokenBudgetResult tokenBudget = tokenGovernanceService.assemble(TokenScene.RAG_CHAT, List.of(
+                TokenPromptSection.of("回答约束", answerRules, 100, true),
+                TokenPromptSection.of("本轮问题", normalizedQuestion, 100, true),
+                TokenPromptSection.of("RAG证据", context, 95, true),
+                TokenPromptSection.of("L3会话任务摘要", summaryContext, 70, false),
+                TokenPromptSection.of("用户结构化偏好", preferencePromptBlock, 60, false),
+                TokenPromptSection.of("L2长期事实与偏好", l2Context, 50, false),
+                TokenPromptSection.of("最近会话上下文", memoryContext, 40, false)
+        ));
+        String prompt = tokenBudget.getPrompt();
 
         String answer;
+        TokenGenerationResult generationResult = null;
+        String generationMode = "LLM";
+        boolean fallbackUsed = false;
+        String fallbackReason = "";
         try {
-            answer = chatGenerationService.generate(prompt);
+            generationResult = chatGenerationService.generate(TokenGenerationRequest.builder()
+                    .scene(TokenScene.RAG_CHAT)
+                    .traceId(traceId)
+                    .prompt(prompt)
+                    .budgetResult(tokenBudget)
+                    .build());
+            answer = generationResult.getContent();
         } catch (BusinessException ex) {
             log.warn("RAG chat LLM generation failed, fallback to evidence answer, traceId={}, message={}", traceId, ex.getMessage());
             answer = buildEvidenceFallbackAnswer(normalizedQuestion, sources);
+            generationMode = "EVIDENCE_FALLBACK";
+            fallbackUsed = true;
+            fallbackReason = "回答模型暂不可用，已根据检索证据生成降级回答";
         }
         answer = improveWeakInsufficientAnswer(answer, normalizedQuestion, sources);
         answer = enforceEvidenceFaithfulness(answer, normalizedQuestion, sessionSummary, sources);
@@ -227,14 +261,71 @@ public class RagChatServiceImpl implements RagChatService {
         vo.setConfidenceLevel(confidenceLevel);
         vo.setRetrievalMode(searchResp.getRetrievalMode());
         vo.setRetrievalDebug(searchResp.getDebugInfo());
-        vo.setConfidenceDebug(buildConfidenceDebug(top1Score, top2Score, top3AvgScore, lexicalCoverage, multiSourceCount, keywordHitCount, hits, confidenceLevel));
+        vo.setConfidenceDebug(buildConfidenceDebug(
+                top1Score, top2Score, top3AvgScore, lexicalCoverage,
+                multiSourceCount, vectorHitCount, keywordHitCount, hits, confidenceLevel));
         vo.setPreferenceAutofillDebug(preferenceAutofillDebug);
         vo.setPromptDebug(prompt);
         vo.setMemoryAssemblyDebug(memoryAssemblyDebug);
+        vo.setGenerationMode(generationMode);
+        vo.setFallbackUsed(fallbackUsed);
+        vo.setFallbackReason(fallbackReason);
+        vo.setTokenInputBudget(tokenBudget.getInputBudget());
+        vo.setTokenOutputBudget(tokenBudget.getOutputBudget());
+        vo.setOriginalPromptTokens(tokenBudget.getOriginalPromptTokens());
+        vo.setTrimmedTokens(tokenBudget.getTrimmedTokens());
+        if (generationResult != null) {
+            vo.setPromptTokens(generationResult.getPromptTokens());
+            vo.setCompletionTokens(generationResult.getCompletionTokens());
+            vo.setTotalTokens(generationResult.getTotalTokens());
+            vo.setTokenUsageEstimated(generationResult.isUsageEstimated());
+        }
         conversationMemoryService.appendTurn(sessionId, normalizedQuestion, answer);
         sessionSummaryService.refreshSummaryIfNeeded(sessionId, normalizedQuestion, answer);
         l2MemoryService.saveMemory(memoryUserId, sessionId, "FACT", normalizedQuestion + " -> " + answer, 0.3D);
-        return vo;
+        return publishOutcome(vo, normalizedQuestion, sessionId, normalizedTopK, "");
+    }
+
+    private WsChatDoneVO publishOutcome(WsChatDoneVO response, String query, String sessionId,
+                                        Integer topK, String reasonCode) {
+        try {
+            eventPublisher.publishEvent(new RagChatOutcomeEvent(
+                    query,
+                    sessionId,
+                    response.getTraceId(),
+                    topK,
+                    response.getRetrievalMode(),
+                    response.getRetrievalDebug(),
+                    response.getLowConfidence(),
+                    response.getAnswer(),
+                    response.getSources(),
+                    reasonCode
+            ));
+        } catch (Exception ex) {
+            log.warn("RAG outcome event publish failed, traceId={}, reason={}", response.getTraceId(), ex.getMessage());
+        }
+        return response;
+    }
+
+    private String classifyGapReason(String question, String fallback) {
+        if (!StringUtils.hasText(question)) {
+            return fallback;
+        }
+        if (isMissingFieldsQuestion(question)) {
+            return "MISSING_FIELDS";
+        }
+        return fallback;
+    }
+
+    private boolean isMissingFieldsQuestion(String question) {
+        if (!StringUtils.hasText(question)) {
+            return false;
+        }
+        String compact = question.replaceAll("[\\p{P}\\p{S}\\s]+", "");
+        boolean vagueObject = compact.contains("这个") || compact.contains("这东西") || compact.contains("该商品");
+        boolean vagueIntent = compact.contains("能卖") || compact.contains("能买吗")
+                || compact.contains("多少钱") || compact.contains("有风险吗");
+        return compact.length() <= 24 && vagueObject && vagueIntent;
     }
 
     private String buildMemoryAssemblyDebug(
@@ -637,7 +728,10 @@ public class RagChatServiceImpl implements RagChatService {
         return "请补充商品品类、品牌型号、成色、维修史、配件和凭证。";
     }
 
-    private String calcConfidenceLevel(double top1Score, double top2Score, double top3AvgScore, double lexicalCoverage, int multiSourceCount, int keywordHitCount, List<KnowledgeSearchHitVO> hits) {
+    private String calcConfidenceLevel(double top1Score, double top2Score, double top3AvgScore,
+                                       double lexicalCoverage, int multiSourceCount,
+                                       int vectorHitCount, int keywordHitCount,
+                                       List<KnowledgeSearchHitVO> hits) {
         if (hits == null || hits.isEmpty()) {
             return "LOW";
         }
@@ -649,6 +743,12 @@ public class RagChatServiceImpl implements RagChatService {
         double sourceDiversity = Math.min(multiSourceCount / 3.0D, 1.0D);
         double keywordSignal = Math.min(keywordHitCount / 4.0D, 1.0D);
         double marginBonus = Math.min(margin / 0.0020D, 1.0D);
+
+        // RRF只表达排序，不表达相关性的绝对强弱。向量分支不可用时，少量通用词造成的
+        // BM25命中不能单独支撑可靠回答，否则“火星量子烤箱保修规则”也可能命中通用保修文档。
+        if (vectorHitCount <= 0 && keywordHitCount > 0 && lexicalCoverage < 0.20D) {
+            return "LOW";
+        }
 
         double confidenceScore =
                 0.35D * normTop1
@@ -679,10 +779,16 @@ public class RagChatServiceImpl implements RagChatService {
             vo.setRetrievalDebug(searchResp.getDebugInfo());
         }
         vo.setConfidenceDebug("hits=0");
+        vo.setGenerationMode("NO_EVIDENCE");
+        vo.setFallbackUsed(false);
+        vo.setFallbackReason("");
         return vo;
     }
 
-    private String buildConfidenceDebug(double top1Score, double top2Score, double top3AvgScore, double lexicalCoverage, int multiSourceCount, int keywordHitCount, List<KnowledgeSearchHitVO> hits, String confidenceLevel) {
+    private String buildConfidenceDebug(double top1Score, double top2Score, double top3AvgScore,
+                                        double lexicalCoverage, int multiSourceCount,
+                                        int vectorHitCount, int keywordHitCount,
+                                        List<KnowledgeSearchHitVO> hits, String confidenceLevel) {
         int hitSize = hits == null ? 0 : hits.size();
         double normTop1 = normalizeByRrfTop1(top1Score);
         double normTop3 = normalizeByRrfTop1(top3AvgScore);
@@ -708,9 +814,12 @@ public class RagChatServiceImpl implements RagChatService {
                 + ",margin=" + formatDouble(margin)
                 + ",lexicalCoverage=" + formatDouble(lexicalCoverage)
                 + ",sourceDiversity=" + formatDouble(sourceDiversity)
+                + ",vectorHitCount=" + vectorHitCount
                 + ",keywordSignal=" + formatDouble(keywordSignal)
                 + ",multiSourceCount=" + multiSourceCount
                 + ",keywordHitCount=" + keywordHitCount
+                + ",keywordOnlyWeakEvidence="
+                + (vectorHitCount <= 0 && keywordHitCount > 0 && lexicalCoverage < 0.20D)
                 + ",hitSize=" + hitSize;
     }
 
@@ -769,11 +878,57 @@ public class RagChatServiceImpl implements RagChatService {
     private Set<String> tokenize(String question) {
         Set<String> tokens = new HashSet<>();
         for (String part : question.toLowerCase(Locale.ROOT).split("\\s+|，|。|,|;|；|:|：|/|\\\\|\\(|\\)|\\[|\\]|\"|\'")) {
-            if (StringUtils.hasText(part) && part.length() >= 2) {
-                tokens.add(part.trim());
+            if (!StringUtils.hasText(part)) {
+                continue;
             }
+            String normalized = part.trim();
+            StringBuilder cjk = new StringBuilder();
+            StringBuilder alphaNumeric = new StringBuilder();
+            for (int i = 0; i < normalized.length(); i++) {
+                char ch = normalized.charAt(i);
+                if (isCjk(ch)) {
+                    flushAlphaNumeric(tokens, alphaNumeric);
+                    cjk.append(ch);
+                } else {
+                    flushCjkBigrams(tokens, cjk);
+                    if (Character.isLetterOrDigit(ch) || ch == '-' || ch == '_' || ch == '.') {
+                        alphaNumeric.append(ch);
+                    } else {
+                        flushAlphaNumeric(tokens, alphaNumeric);
+                    }
+                }
+            }
+            flushCjkBigrams(tokens, cjk);
+            flushAlphaNumeric(tokens, alphaNumeric);
         }
         return tokens;
+    }
+
+    private void flushCjkBigrams(Set<String> tokens, StringBuilder buffer) {
+        if (buffer.length() == 1) {
+            tokens.add(buffer.toString());
+        } else {
+            for (int i = 0; i < buffer.length() - 1; i++) {
+                tokens.add(buffer.substring(i, i + 2));
+            }
+        }
+        buffer.setLength(0);
+    }
+
+    private void flushAlphaNumeric(Set<String> tokens, StringBuilder buffer) {
+        if (buffer.length() >= 2) {
+            tokens.add(buffer.toString());
+        }
+        buffer.setLength(0);
+    }
+
+    private boolean isCjk(char ch) {
+        Character.UnicodeBlock block = Character.UnicodeBlock.of(ch);
+        return block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_B
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS_SUPPLEMENT;
     }
 
     private String buildSourceKey(KnowledgeSearchHitVO hit) {
@@ -831,7 +986,7 @@ public class RagChatServiceImpl implements RagChatService {
         return out;
     }
 
-    private Map<String, String> extractPreferencesByLlm(String question) {
+    private Map<String, String> extractPreferencesByLlm(String question, String traceId) {
         if (!StringUtils.hasText(question)) {
             return Collections.emptyMap();
         }
@@ -852,7 +1007,11 @@ public class RagChatServiceImpl implements RagChatService {
                     只返回JSON，不要输出解释。
                     用户问题：%s
                     """.formatted(question);
-            String raw = chatGenerationService.generate(prompt);
+            String raw = chatGenerationService.generate(TokenGenerationRequest.builder()
+                    .scene(TokenScene.PREFERENCE_EXTRACTION)
+                    .traceId(traceId)
+                    .prompt(prompt)
+                    .build()).getContent();
             if (!StringUtils.hasText(raw)) {
                 return Collections.emptyMap();
             }

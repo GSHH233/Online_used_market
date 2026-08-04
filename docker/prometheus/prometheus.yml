@@ -7,9 +7,9 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
-  # VMware 场景：Prometheus 跑在 Linux VM Docker 中，Spring Boot 跑在 Windows 宿主机。
-  # Windows VMnet8 地址通常是 192.168.152.1；如果你的 VMnet8 地址变化，请同步修改。
+  # Docker Desktop 场景：Prometheus 在容器中通过宿主机别名采集 Spring Boot。
+  # Linux Docker 可通过 extra_hosts 映射 host.docker.internal，或按部署环境修改 target。
   - job_name: online-used-marketplace
     metrics_path: /actuator/prometheus
     static_configs:
-      - targets: ['192.168.152.1:8080']
+      - targets: ['host.docker.internal:8080']

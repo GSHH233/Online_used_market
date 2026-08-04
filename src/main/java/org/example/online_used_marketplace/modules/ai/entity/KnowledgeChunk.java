@@ -27,6 +27,10 @@ public class KnowledgeChunk {
 
     private String embeddingModel;
 
+    private String indexVersion;
+
+    private String indexStatus;
+
     /**
      * 扩展元信息(JSON字符串)
      */

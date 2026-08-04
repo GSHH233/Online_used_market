@@ -29,6 +29,24 @@ public class KnowledgeDoc {
 
     private String sourceUri;
 
+    private String fileName;
+
+    private String mimeType;
+
+    private String fileHash;
+
+    private String parserType;
+
+    private String parserVersion;
+
+    private String structureJson;
+
+    private String chunkStrategyVersion;
+
+    private String embeddingModel;
+
+    private String activeIndexVersion;
+
     /**
      * 文档原文
      */

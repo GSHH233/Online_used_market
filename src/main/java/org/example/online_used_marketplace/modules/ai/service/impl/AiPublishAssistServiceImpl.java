@@ -10,6 +10,7 @@ import org.example.online_used_marketplace.modules.ai.enums.AssistStepStatus;
 import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistPipelineRunner;
 import org.example.online_used_marketplace.modules.ai.service.AiPublishAssistService;
 import org.example.online_used_marketplace.modules.ai.service.PublishAssistGuardrailService;
+import org.example.online_used_marketplace.modules.ai.service.PublishAssistFeedbackService;
 import org.example.online_used_marketplace.modules.ai.service.ReplanService;
 import org.example.online_used_marketplace.modules.ai.vo.AssistStepTraceVO;
 import org.example.online_used_marketplace.modules.ai.vo.ProductPublishAssistVO;
@@ -20,6 +21,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * 发布助手聚合服务
@@ -31,9 +33,23 @@ public class AiPublishAssistServiceImpl implements AiPublishAssistService {
     private final ReplanService replanService;
     private final PublishAssistPipelineRunner pipelineRunner;
     private final PublishAssistGuardrailService guardrailService;
+    private final PublishAssistFeedbackService feedbackService;
 
     @Override
-    public ProductPublishAssistVO assist(ProductPublishAssistRequestDTO request) {
+    public ProductPublishAssistVO assist(ProductPublishAssistRequestDTO request, Long userId) {
+        if (userId == null || userId <= 0) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "未认证或登录已过期");
+        }
+        ProductPublishAssistVO result = executeAssist(request);
+        String assistId = UUID.randomUUID().toString();
+        String traceId = UUID.randomUUID().toString();
+        result.setAssistId(assistId);
+        result.setTraceId(traceId);
+        feedbackService.recordAssist(assistId, traceId, userId, request, result);
+        return result;
+    }
+
+    private ProductPublishAssistVO executeAssist(ProductPublishAssistRequestDTO request) {
         validateRequest(request);
 
         List<AssistStepTraceVO> trace = new ArrayList<>();
@@ -123,6 +139,9 @@ public class AiPublishAssistServiceImpl implements AiPublishAssistService {
         vo.setRiskEvidence(result.getRiskEvidence());
         vo.setTrace(trace);
         vo.setSources(result.getSources());
+        vo.setGenerationMode(result.getGenerationMode());
+        vo.setFallbackUsed(result.getFallbackUsed());
+        vo.setFallbackReason(result.getFallbackReason());
         return vo;
     }
 

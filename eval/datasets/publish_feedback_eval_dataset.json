@@ -1,0 +1,22 @@
+[
+  {"caseId":"PUB-001","requirementIds":["PUB-AC-001"],"scenario":"generate_assist","maxLatencyMs":30000},
+  {"caseId":"PUB-002","requirementIds":["PUB-AC-001"],"scenario":"traceability_fields"},
+  {"caseId":"PUB-003","requirementIds":["PUB-AC-001"],"scenario":"owner_get"},
+  {"caseId":"PUB-004","requirementIds":["PUB-AC-003"],"scenario":"other_user_get_denied"},
+  {"caseId":"PUB-005","requirementIds":["PUB-AC-002"],"scenario":"partial_feedback"},
+  {"caseId":"PUB-006","requirementIds":["PUB-AC-002"],"scenario":"feedback_upsert"},
+  {"caseId":"PUB-007","requirementIds":["PUB-AC-002"],"scenario":"ignored_with_fields_rejected"},
+  {"caseId":"PUB-008","requirementIds":["PUB-AC-002"],"scenario":"partial_without_fields_rejected"},
+  {"caseId":"PUB-009","requirementIds":["PUB-AC-002"],"scenario":"unknown_field_rejected"},
+  {"caseId":"PUB-010","requirementIds":["PUB-AC-002"],"scenario":"create_linked_product"},
+  {"caseId":"PUB-011","requirementIds":["PUB-AC-002"],"scenario":"product_link_visible"},
+  {"caseId":"PUB-012","requirementIds":["PUB-AC-003"],"scenario":"other_user_feedback_denied"},
+  {"caseId":"PUB-013","requirementIds":["PUB-AC-004"],"scenario":"internal_auto_outcome"},
+  {"caseId":"PUB-014","requirementIds":["PUB-AC-004"],"scenario":"internal_final_outcome_denied"},
+  {"caseId":"PUB-015","requirementIds":["PUB-AC-004"],"scenario":"admin_final_rejected"},
+  {"caseId":"PUB-016","requirementIds":["PUB-AC-005"],"scenario":"internal_metrics"},
+  {"caseId":"PUB-017","requirementIds":["PUB-AC-003"],"scenario":"user_metrics_denied"},
+  {"caseId":"PUB-018","requirementIds":["PUB-AC-005"],"scenario":"adoption_metrics"},
+  {"caseId":"PUB-019","requirementIds":["PUB-AC-004"],"scenario":"replace_final_outcome"},
+  {"caseId":"PUB-020","requirementIds":["PUB-AC-005"],"scenario":"risk_metrics"}
+]

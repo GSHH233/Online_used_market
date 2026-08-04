@@ -75,6 +75,9 @@ public class PublishAssistGuardrailServiceImpl implements PublishAssistGuardrail
         vo.setCanPublish(true);
         vo.setTrace(trace);
         vo.setSources(searchRuleSources(rule));
+        vo.setGenerationMode("RULE_GUARDRAIL");
+        vo.setFallbackUsed(false);
+        vo.setFallbackReason("");
         return vo;
     }
 

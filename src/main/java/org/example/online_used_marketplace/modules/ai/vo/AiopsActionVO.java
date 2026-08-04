@@ -13,7 +13,13 @@ public class AiopsActionVO {
 
     private String actionType;
 
+    private String traceId;
+
+    private String idempotencyKey;
+
     private String status;
+
+    private String verificationStatus;
 
     private String suggestion;
 
@@ -22,4 +28,8 @@ public class AiopsActionVO {
     private String metadataJson;
 
     private LocalDateTime createdTime;
+
+    private LocalDateTime startedAt;
+
+    private LocalDateTime finishedAt;
 }

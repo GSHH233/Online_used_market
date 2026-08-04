@@ -1,7 +1,9 @@
 package org.example.online_used_marketplace.modules.ai.controller;
 
 import lombok.RequiredArgsConstructor;
+import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.Result;
+import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.dto.AiopsRunbookExecuteRequestDTO;
 import org.example.online_used_marketplace.modules.ai.service.AiopsRunbookService;
 import org.example.online_used_marketplace.modules.ai.vo.AiopsRunbookActionVO;
@@ -25,7 +27,9 @@ public class AiopsRunbookController {
     @PostMapping("/execute")
     public Result<AiopsRunbookActionVO> execute(@RequestBody AiopsRunbookExecuteRequestDTO request) {
         if (request != null && Boolean.FALSE.equals(request.getDryRun())) {
-            ToolAccessGuard.requireAdminEndpoint("aiops_runbook_execute");
+            ToolAccessGuard.requireAdminEndpoint("aiops_runbook_execute_legacy");
+            throw new BusinessException(ResultCode.CONFLICT,
+                    "真实 Runbook 执行已收口为受控操作计划，请调用 POST /api/ai/operations/plans 后审批执行");
         } else {
             ToolAccessGuard.requireInternalEndpoint("aiops_runbook_dry_run");
         }

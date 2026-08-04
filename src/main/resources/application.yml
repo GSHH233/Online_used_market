@@ -8,7 +8,7 @@ spring:
   security:
     user:
       name: ${SPRING_SECURITY_USER:swagger}
-      password: ${SPRING_SECURITY_PASSWORD:change-me}
+      password: ${SPRING_SECURITY_PASSWORD}
 
   datasource:
     jdbc-url: ${MYSQL_URL:jdbc:mysql://localhost:3306/used_market?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
@@ -50,7 +50,7 @@ spring:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD:guest}
+    password: ${RABBITMQ_PASSWORD}
     virtual-host: ${RABBITMQ_VHOST:/}
     connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:5s}
     publisher-confirm-type: correlated
@@ -104,7 +104,7 @@ management:
         http.server.requests: 50ms,100ms,200ms,500ms,1s,2s,5s
 
 jwt:
-  secret: ${JWT_SECRET:change-me-use-env-in-production-32bytes-min}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION_MS:86400000}
   token-header: Authorization
   token-prefix: Bearer
@@ -115,13 +115,50 @@ sms:
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  access-key: ${MINIO_ACCESS_KEY}
+  secret-key: ${MINIO_SECRET_KEY}
   bucket-name: ${MINIO_BUCKET:used-market}
 
 ai:
+  embedding:
+    max-batch-size: ${AI_EMBEDDING_MAX_BATCH_SIZE:10}
+
+  publish-feedback:
+    auto-init: ${AI_PUBLISH_FEEDBACK_AUTO_INIT:true}
+
+  token-governance:
+    enabled: ${AI_TOKEN_GOVERNANCE_ENABLED:true}
+    persist-enabled: ${AI_TOKEN_GOVERNANCE_PERSIST_ENABLED:true}
+    recent-memory-limit: ${AI_TOKEN_RECENT_MEMORY_LIMIT:500}
+    default-input-tokens: ${AI_TOKEN_DEFAULT_INPUT:4000}
+    default-output-tokens: ${AI_TOKEN_DEFAULT_OUTPUT:500}
+    rag-chat-input-tokens: ${AI_TOKEN_RAG_INPUT:6000}
+    rag-chat-output-tokens: ${AI_TOKEN_RAG_OUTPUT:600}
+    agent-final-input-tokens: ${AI_TOKEN_AGENT_FINAL_INPUT:4000}
+    agent-final-output-tokens: ${AI_TOKEN_AGENT_FINAL_OUTPUT:400}
+    agent-planner-input-tokens: ${AI_TOKEN_AGENT_PLANNER_INPUT:2000}
+    agent-planner-output-tokens: ${AI_TOKEN_AGENT_PLANNER_OUTPUT:350}
+    session-summary-input-tokens: ${AI_TOKEN_SUMMARY_INPUT:3000}
+    session-summary-output-tokens: ${AI_TOKEN_SUMMARY_OUTPUT:300}
+    preference-extraction-input-tokens: ${AI_TOKEN_PREFERENCE_INPUT:1200}
+    preference-extraction-output-tokens: ${AI_TOKEN_PREFERENCE_OUTPUT:250}
+    query-rewrite-input-tokens: ${AI_TOKEN_QUERY_REWRITE_INPUT:1500}
+    query-rewrite-output-tokens: ${AI_TOKEN_QUERY_REWRITE_OUTPUT:350}
+    semantic-chunking-input-tokens: ${AI_TOKEN_SEMANTIC_CHUNK_INPUT:3500}
+    semantic-chunking-output-tokens: ${AI_TOKEN_SEMANTIC_CHUNK_OUTPUT:500}
+    publish-optimize-input-tokens: ${AI_TOKEN_PUBLISH_OPTIMIZE_INPUT:2500}
+    publish-optimize-output-tokens: ${AI_TOKEN_PUBLISH_OPTIMIZE_OUTPUT:600}
+
   knowledge:
     ingestion:
+      auto-init: ${KNOWLEDGE_INGESTION_AUTO_INIT:true}
+      max-file-size-mb: ${KNOWLEDGE_MAX_FILE_SIZE_MB:20}
+      max-extracted-chars: ${KNOWLEDGE_MAX_EXTRACTED_CHARS:2000000}
+      max-pdf-pages: ${KNOWLEDGE_MAX_PDF_PAGES:300}
+      parser-timeout-ms: ${KNOWLEDGE_PARSER_TIMEOUT_MS:30000}
+      raw-bucket: ${KNOWLEDGE_RAW_BUCKET:knowledge-source}
+      parser-version: ${KNOWLEDGE_PARSER_VERSION:spring-ai-reader-1.0.3-v1}
+      embedding-model: ${OPENAI_EMBEDDING_MODEL:text-embedding-v3}
       rabbit:
         enabled: ${KNOWLEDGE_INGESTION_RABBIT_ENABLED:true}
         max-retries: ${KNOWLEDGE_INGESTION_MAX_RETRIES:2}
@@ -134,6 +171,29 @@ ai:
         queued-stale-seconds: ${KNOWLEDGE_INGESTION_QUEUED_STALE_SECONDS:60}
         running-stale-seconds: ${KNOWLEDGE_INGESTION_RUNNING_STALE_SECONDS:600}
         recovery-batch-size: ${KNOWLEDGE_INGESTION_RECOVERY_BATCH_SIZE:100}
+    chunking:
+      strategy-version: ${KNOWLEDGE_CHUNK_STRATEGY_VERSION:structure-semantic-v1}
+      target-tokens: ${KNOWLEDGE_CHUNK_TARGET_TOKENS:450}
+      max-tokens: ${KNOWLEDGE_CHUNK_MAX_TOKENS:600}
+      min-tokens: ${KNOWLEDGE_CHUNK_MIN_TOKENS:100}
+      overlap-tokens: ${KNOWLEDGE_CHUNK_OVERLAP_TOKENS:80}
+      semantic-enabled: ${KNOWLEDGE_SEMANTIC_CHUNK_ENABLED:false}
+      semantic-model-id: ${KNOWLEDGE_SEMANTIC_CHUNK_MODEL_ID:configured-chat-model}
+      semantic-timeout-ms: ${KNOWLEDGE_SEMANTIC_CHUNK_TIMEOUT_MS:8000}
+      semantic-window-tokens: ${KNOWLEDGE_SEMANTIC_WINDOW_TOKENS:2500}
+      semantic-cache-ttl-minutes: ${KNOWLEDGE_SEMANTIC_CACHE_TTL_MINUTES:1440}
+      semantic-cache-max-entries: ${KNOWLEDGE_SEMANTIC_CACHE_MAX_ENTRIES:2000}
+    query-rewrite:
+      enabled: ${KNOWLEDGE_QUERY_REWRITE_ENABLED:true}
+      shadow-mode: ${KNOWLEDGE_QUERY_REWRITE_SHADOW_MODE:false}
+      model-id: ${KNOWLEDGE_QUERY_REWRITE_MODEL_ID:configured-chat-model}
+      cache-ttl-seconds: ${KNOWLEDGE_QUERY_REWRITE_CACHE_TTL_SECONDS:300}
+      cache-max-entries: ${KNOWLEDGE_QUERY_REWRITE_CACHE_MAX_ENTRIES:1000}
+      timeout-ms: ${KNOWLEDGE_QUERY_REWRITE_TIMEOUT_MS:15000}
+      max-sub-queries: ${KNOWLEDGE_QUERY_REWRITE_MAX_SUB_QUERIES:3}
+      max-synonym-queries: ${KNOWLEDGE_QUERY_REWRITE_MAX_SYNONYM_QUERIES:2}
+      low-confidence-threshold: ${KNOWLEDGE_QUERY_REWRITE_LOW_CONFIDENCE:0.35}
+      total-candidate-budget: ${KNOWLEDGE_QUERY_REWRITE_CANDIDATE_BUDGET:60}
 
   chat:
     memory:
@@ -176,6 +236,9 @@ ai:
       default-step: ${PROMETHEUS_DEFAULT_STEP:60s}
 
   agent:
+    planner:
+      llm-enabled: ${AI_AGENT_LLM_PLANNER_ENABLED:false}
+      max-replans: ${AI_AGENT_MAX_REPLANS:2}
     harness:
       enabled: ${AI_AGENT_HARNESS_ENABLED:true}
       defaults:
@@ -210,6 +273,8 @@ ai:
           snapshot-ttl-seconds: 600
           fallback-summary: Harness 故障注入工具已触发降级
 
+    runtime:
+      fault-injection-enabled: ${AI_AGENT_RUNTIME_FAULT_INJECTION_ENABLED:true}
   memory-graph:
     pgsql:
       enabled: ${MEMORY_GRAPH_PG_ENABLED:true}

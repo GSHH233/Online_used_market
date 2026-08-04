@@ -31,5 +31,17 @@ public class AiopsEventVO {
 
     private LocalDateTime lastSeenAt;
 
+    private Long approvedBy;
+
+    private LocalDateTime approvedAt;
+
+    private LocalDateTime resolvedAt;
+
+    private String resolutionType;
+
+    private Boolean manualRequired;
+
+    private String escalationReason;
+
     private List<AiopsActionVO> actions = new ArrayList<>();
 }

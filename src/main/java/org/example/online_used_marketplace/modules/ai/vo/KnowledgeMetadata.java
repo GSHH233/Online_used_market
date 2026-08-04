@@ -36,6 +36,17 @@ public class KnowledgeMetadata {
     private String effectiveTo;
     private String docStatus;
     private String disabledReason;
+    private List<String> headingPath;
+    private Integer pageFrom;
+    private Integer pageTo;
+    private String contentType;
+    private Integer sourceStart;
+    private Integer sourceEnd;
+    private String semanticTopic;
+    private String chunkStrategyVersion;
+    private String indexVersion;
+    private Boolean overlap;
+    private Integer overlapChars;
 
     public void normalize() {
         sourceType = normalizeText(sourceType, UNKNOWN);
@@ -50,6 +61,13 @@ public class KnowledgeMetadata {
         docStatus = normalizeText(docStatus, "");
         disabledReason = normalizeText(disabledReason, "");
         tags = (tags == null) ? Collections.emptyList() : tags;
+        headingPath = (headingPath == null) ? Collections.emptyList() : headingPath;
+        contentType = normalizeText(contentType, "PARAGRAPH");
+        semanticTopic = normalizeText(semanticTopic, "");
+        chunkStrategyVersion = normalizeText(chunkStrategyVersion, "legacy-v1");
+        indexVersion = normalizeText(indexVersion, "");
+        overlap = Boolean.TRUE.equals(overlap);
+        overlapChars = overlapChars == null ? 0 : Math.max(0, overlapChars);
     }
 
     public static KnowledgeMetadata fromJson(String metadataJson, ObjectMapper objectMapper) {

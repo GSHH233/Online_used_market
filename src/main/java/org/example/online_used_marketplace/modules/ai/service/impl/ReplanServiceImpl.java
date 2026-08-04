@@ -78,17 +78,9 @@ public class ReplanServiceImpl implements ReplanService {
         if (!StringUtils.hasText(firstResult.getPriceSuggestion())) {
             return true;
         }
-        // 4) 风险与发布决策触发
-        Integer riskScore = firstResult.getRiskScore();
-        if (riskScore == null || riskScore < 60) {
-            return true;
-        }
-        List<String> riskWarnings = firstResult.getRiskWarnings();
-        if (riskWarnings == null || riskWarnings.isEmpty() || riskScore<60){
-            return true;
-        }
-        Boolean canPublish = firstResult.getCanPublish();
-        return canPublish == null || Boolean.FALSE.equals(canPublish);
+        // 风险命中不是重规划条件。自动替换风险原文后重新评估会掩盖首轮证据，
+        // 重规划只负责补齐不完整的生成结果。
+        return firstResult.getRiskScore() == null || firstResult.getCanPublish() == null;
     }
     public Boolean decideCanPublish(Integer riskScore) {
         return riskScore >= 60;

@@ -2,11 +2,8 @@ package org.example.online_used_marketplace.modules.ai.service.impl;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
-import org.example.online_used_marketplace.modules.ai.dto.AiopsEventCreateDTO;
-import org.example.online_used_marketplace.modules.ai.dto.AiopsEventUpdateDTO;
 import org.example.online_used_marketplace.modules.ai.dto.AiopsRunbookExecuteRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeRepairBatchRequestDTO;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskStatus;
@@ -18,8 +15,11 @@ import org.example.online_used_marketplace.modules.ai.vo.AiopsRunbookActionVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeIndexTaskVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeReindexTriggerVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeRepairBatchResponseVO;
+import org.example.online_used_marketplace.modules.user.entity.UserPrincipal;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -32,7 +32,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Service
-@RequiredArgsConstructor
 public class AiopsRunbookServiceImpl implements AiopsRunbookService {
 
     private static final String REPAIR_KNOWLEDGE_DOC = "REPAIR_KNOWLEDGE_DOC";
@@ -42,8 +41,17 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
     private final KnowledgeIndexService knowledgeIndexService;
     private final AiopsEventService aiopsEventService;
     private final ObjectMapper objectMapper;
-    @Qualifier("memoryGraphJdbcTemplate")
     private final JdbcTemplate jdbcTemplate;
+
+    public AiopsRunbookServiceImpl(KnowledgeIndexService knowledgeIndexService,
+                                   AiopsEventService aiopsEventService,
+                                   ObjectMapper objectMapper,
+                                   @Qualifier("memoryGraphJdbcTemplate") JdbcTemplate jdbcTemplate) {
+        this.knowledgeIndexService = knowledgeIndexService;
+        this.aiopsEventService = aiopsEventService;
+        this.objectMapper = objectMapper;
+        this.jdbcTemplate = jdbcTemplate;
+    }
 
     @Override
     public List<AiopsRunbookActionVO> listRunbooks() {
@@ -66,6 +74,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         Map<String, Object> params = request.getParams() == null ? Map.of() : new LinkedHashMap<>(request.getParams());
         boolean dryRun = !Boolean.FALSE.equals(request.getDryRun());
         String idempotencyKey = buildIdempotencyKey(request, actionCode, params);
+        String traceId = UUID.randomUUID().toString();
 
         long start = System.currentTimeMillis();
         AiopsRunbookActionVO vo = new AiopsRunbookActionVO();
@@ -74,6 +83,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         vo.setRiskLevel("LOW");
         vo.setDryRun(dryRun);
         vo.setExecuted(false);
+        vo.setTraceId(traceId);
         vo.setIdempotencyKey(idempotencyKey);
         vo.setParams(params);
         vo.setStatus(dryRun ? "DRY_RUN" : "RUNNING");
@@ -102,9 +112,11 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
             return vo;
         }
 
+        aiopsEventService.markExecuting(eventId, traceId);
         Long actionId = null;
         try {
-            actionId = insertAction(eventId, actionCode, "RUNNING", request.getReason(), false, baseMetadata(request, vo, null));
+            actionId = insertAction(eventId, actionCode, traceId, idempotencyKey, "RUNNING",
+                    request.getReason(), false, "NOT_STARTED", baseMetadata(request, vo, null));
             vo.setActionId(actionId);
             RunbookExecutionResult result = executeAction(actionCode, params, request, eventId);
             vo.setExecuted(true);
@@ -112,9 +124,17 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
             vo.setMessage(result.message());
             vo.setVerificationStatus(result.verificationStatus());
             vo.setResult(result.result());
+            if (!MARK_EVENT_RESOLVED.equals(actionCode)) {
+                aiopsEventService.markVerifying(eventId);
+                if (result.success()) {
+                    aiopsEventService.markResolved(eventId, "AUTO_VERIFIED", result.message());
+                } else {
+                    aiopsEventService.markEscalated(eventId, result.message(), "自动修复验证失败，已转人工处理");
+                }
+            }
             vo.setMetadata(baseMetadata(request, vo, result.result()));
             vo.setElapsedMs(System.currentTimeMillis() - start);
-            updateAction(actionId, vo.getStatus(), true, result.message(), vo.getMetadata());
+            updateAction(actionId, vo.getStatus(), true, result.verificationStatus(), result.message(), vo.getMetadata());
             return vo;
         } catch (RuntimeException ex) {
             vo.setStatus("FAILED");
@@ -123,8 +143,9 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
             vo.setResult(Map.of("error", vo.getMessage()));
             vo.setMetadata(baseMetadata(request, vo, vo.getResult()));
             vo.setElapsedMs(System.currentTimeMillis() - start);
+            aiopsEventService.markEscalated(eventId, vo.getMessage(), "自动修复执行异常，已转人工处理");
             if (actionId != null) {
-                updateAction(actionId, "FAILED", false, vo.getMessage(), vo.getMetadata());
+                updateAction(actionId, "FAILED", true, "FAILED", vo.getMessage(), vo.getMetadata());
             }
             return vo;
         }
@@ -209,12 +230,8 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
 
     private RunbookExecutionResult markEventResolved(Long eventId, Map<String, Object> params) {
         Long targetEventId = eventId == null ? requiredLong(params, "eventId") : eventId;
-        AiopsEventUpdateDTO dto = new AiopsEventUpdateDTO();
-        dto.setStatus("RESOLVED");
-        dto.setExecuted(true);
-        dto.setSummary(str(params.get("summary"), "Runbook marked event as resolved"));
-        dto.setSuggestion("Runbook action marked this event as resolved.");
-        AiopsEventVO event = aiopsEventService.update(targetEventId, dto);
+        AiopsEventVO event = aiopsEventService.markResolved(targetEventId, "MANUAL_OVERRIDE",
+                str(params.get("summary"), "Runbook marked event as resolved"));
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("eventId", event.getId());
         result.put("status", event.getStatus());
@@ -244,31 +261,33 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         if (request.getEventId() != null && request.getEventId() > 0) {
             return request.getEventId();
         }
-        AiopsEventCreateDTO dto = new AiopsEventCreateDTO();
-        dto.setEventKey("runbook-" + idempotencyKey);
-        dto.setTraceId("");
-        dto.setSeverity("INFO");
-        dto.setSource("runbook");
-        dto.setTitle("Runbook auto repair: " + actionCode);
-        dto.setSummary(StringUtils.hasText(request.getReason()) ? request.getReason() : "Runbook action requested");
-        dto.setMetadata(Map.of("actionCode", actionCode, "params", params, "idempotencyKey", idempotencyKey));
-        return aiopsEventService.createOrUpdate(dto).getId();
+        Long eventId = longValue(params.get("eventId"), null);
+        if (eventId != null && eventId > 0) {
+            return eventId;
+        }
+        throw new BusinessException(ResultCode.BAD_REQUEST, "真实执行必须关联已审批的eventId");
     }
 
-    private Long insertAction(Long eventId, String actionCode, String status, String suggestion, boolean executed, Map<String, Object> metadata) {
+    private Long insertAction(Long eventId, String actionCode, String traceId, String idempotencyKey,
+                              String status, String suggestion, boolean executed, String verificationStatus,
+                              Map<String, Object> metadata) {
         return jdbcTemplate.queryForObject("""
-                INSERT INTO aiops_action(event_id,action_type,status,suggestion,executed,metadata_json)
-                VALUES (?, ?, ?, ?, ?, ?::jsonb)
+                INSERT INTO aiops_action(event_id,action_type,trace_id,idempotency_key,status,verification_status,
+                                         suggestion,executed,started_at,metadata_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?::jsonb)
                 RETURNING id
-                """, Long.class, eventId, actionCode, status, str(suggestion, ""), executed, writeJson(metadata));
+                """, Long.class, eventId, actionCode, traceId, idempotencyKey, status, verificationStatus,
+                str(suggestion, ""), executed, writeJson(metadata));
     }
 
-    private void updateAction(Long actionId, String status, boolean executed, String suggestion, Map<String, Object> metadata) {
+    private void updateAction(Long actionId, String status, boolean executed, String verificationStatus,
+                              String suggestion, Map<String, Object> metadata) {
         jdbcTemplate.update("""
                 UPDATE aiops_action
-                SET status=?, executed=?, suggestion=?, metadata_json=?::jsonb
+                SET status=?, executed=?, verification_status=?, suggestion=?, metadata_json=?::jsonb,
+                    finished_at=CURRENT_TIMESTAMP
                 WHERE id=?
-                """, status, executed, str(suggestion, ""), writeJson(metadata), actionId);
+                """, status, executed, verificationStatus, str(suggestion, ""), writeJson(metadata), actionId);
     }
 
     private Long findDuplicateSuccessAction(Long eventId, String actionCode, String idempotencyKey) {
@@ -277,7 +296,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
                 FROM aiops_action
                 WHERE event_id=?
                   AND action_type=?
-                  AND metadata_json->>'idempotencyKey'=?
+                  AND idempotency_key=?
                   AND status IN ('SUCCESS', 'EXECUTED')
                 ORDER BY id DESC
                 LIMIT 1
@@ -295,6 +314,8 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         metadata.put("dryRun", vo.getDryRun());
         metadata.put("executed", vo.getExecuted());
         metadata.put("idempotencyKey", vo.getIdempotencyKey());
+        metadata.put("traceId", vo.getTraceId());
+        metadata.put("operatorId", currentOperatorId());
         metadata.put("verificationStatus", vo.getVerificationStatus());
         metadata.put("reason", str(request.getReason(), ""));
         metadata.put("params", vo.getParams());
@@ -302,6 +323,14 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
             metadata.put("result", result);
         }
         return metadata;
+    }
+
+    private Long currentOperatorId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
+            return principal.getUserId();
+        }
+        return null;
     }
 
     private String normalizeAction(String actionCode) {

@@ -55,8 +55,15 @@ public class OptimizeStepImpl implements PublishAssistStep {
         ProductOptimizeResponseVO vo;
         try {
             vo = aiProductService.optimizeProductInfo(dto);
+            preserveExplicitFacts(context, vo);
+            result.setGenerationMode("LLM");
+            result.setFallbackUsed(false);
+            result.setFallbackReason("");
         } catch (Exception ex) {
             vo = buildFallbackOptimizeResult(context);
+            result.setGenerationMode("RULE_FALLBACK");
+            result.setFallbackUsed(true);
+            result.setFallbackReason("AI文案服务暂不可用，已保留原始信息并给出规则化补充建议");
         }
         result.setOptimizeResult(vo);
 
@@ -85,4 +92,28 @@ public class OptimizeStepImpl implements PublishAssistStep {
         vo.setRiskWarnings(List.of("商品信息不足，无法准确判断发布风险或价格"));
         return vo;
     }
+
+    private void preserveExplicitFacts(PublishInputContext context, ProductOptimizeResponseVO vo) {
+        if (context == null || vo == null || context.getDescription() == null) {
+            return;
+        }
+        String output = (vo.getOptimizedTitle() == null ? "" : vo.getOptimizedTitle())
+                + (vo.getOptimizedDescription() == null ? "" : vo.getOptimizedDescription());
+        List<String> missingFacts = EXPLICIT_FACT_MARKERS.stream()
+                .filter(context.getDescription()::contains)
+                .filter(fact -> !output.contains(fact))
+                .toList();
+        if (missingFacts.isEmpty()) {
+            return;
+        }
+        String description = vo.getOptimizedDescription() == null ? "" : vo.getOptimizedDescription().trim();
+        String suffix = "。已知信息：" + String.join("、", missingFacts) + "。";
+        vo.setOptimizedDescription((description + suffix).substring(0,
+                Math.min(2000, description.length() + suffix.length())));
+    }
+
+    private static final List<String> EXPLICIT_FACT_MARKERS = List.of(
+            "无拆修", "没有拆修", "无维修", "没有维修", "原盒", "充电线",
+            "无发票", "没有发票", "没有购买发票", "朋友赠送"
+    );
 }

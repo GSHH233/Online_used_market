@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 
 const router = useRouter()
+const route = useRoute()
 const auth = useAuthStore()
 
 const mode = ref<'password' | 'sms'>('password')
@@ -37,6 +38,13 @@ const sendButtonText = computed(() => {
   if (smsSending.value) return '发送中...'
   if (countdown.value > 0) return `${countdown.value}s 后重发`
   return '发送验证码'
+})
+
+const loginRedirect = computed(() => {
+  const target = Array.isArray(route.query.redirect) ? route.query.redirect[0] : route.query.redirect
+  if (typeof target !== 'string') return '/market'
+  if (!target.startsWith('/') || target.startsWith('//') || target.startsWith('/login')) return '/market'
+  return target
 })
 
 function resetMessages() {
@@ -80,7 +88,7 @@ async function submitPasswordLogin() {
   resetMessages()
   try {
     await auth.login(passwordForm)
-    await router.push('/market')
+    await router.push(loginRedirect.value)
   } catch (e: any) {
     error.value = e?.message || '登录失败'
   } finally {
@@ -120,7 +128,7 @@ async function submitSmsLogin() {
   resetMessages()
   try {
     await auth.smsLogin({ phone: smsForm.phone.trim(), code: smsForm.code.trim() })
-    await router.push('/market')
+    await router.push(loginRedirect.value)
   } catch (e: any) {
     error.value = e?.message || '登录失败'
   } finally {

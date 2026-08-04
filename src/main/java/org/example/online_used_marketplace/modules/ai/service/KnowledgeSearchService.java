@@ -17,4 +17,9 @@ public interface KnowledgeSearchService {
      * 混合检索：向量召回 + 关键词召回 + RRF 融合
      */
     KnowledgeSearchResponseVO searchHybrid(String question, Integer topK, KnowledgeSearchFilterDTO filter);
+
+    KnowledgeSearchResponseVO searchHybrid(String question,
+                                           Integer topK,
+                                           KnowledgeSearchFilterDTO filter,
+                                           boolean rewriteEnabled);
 }

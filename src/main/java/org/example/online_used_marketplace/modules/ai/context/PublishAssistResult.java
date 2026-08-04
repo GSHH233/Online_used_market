@@ -48,4 +48,10 @@ public class PublishAssistResult {
     private List<RiskEvidenceItemVO> riskEvidence;
 
     private List<RagSourceVO> sources;
+
+    private String generationMode;
+
+    private Boolean fallbackUsed = false;
+
+    private String fallbackReason;
 }

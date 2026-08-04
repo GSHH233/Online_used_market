@@ -7,8 +7,10 @@ import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.dto.ProductOptimizeRequestDTO;
 import org.example.online_used_marketplace.modules.ai.service.AiProductService;
+import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenScene;
 import org.example.online_used_marketplace.modules.ai.vo.ProductOptimizeResponseVO;
-import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -25,7 +27,7 @@ import java.util.List;
 @Service
 @RequiredArgsConstructor
 public class AiProductServiceImpl implements AiProductService {
-    private final ChatClient.Builder chatClient;
+    private final ChatGenerationService chatGenerationService;
     private final ObjectMapper objectMapper;
 
     @Override
@@ -34,16 +36,12 @@ public class AiProductServiceImpl implements AiProductService {
         String systemPrompt = buildSystemPrompt();
         String userPrompt = buildUserPrompt(request);
 
-        // TODO: 你在这里调用 ChatClient，并把模型返回字符串赋值给 modelContent
-
         try {
-            String modelContent = chatClient
-                    .build()
-                    .prompt()
-                    .system(systemPrompt)
-                    .user(userPrompt)
-                    .call()
-                    .content();
+            String modelContent = chatGenerationService.generate(TokenGenerationRequest.builder()
+                    .scene(TokenScene.PUBLISH_OPTIMIZE)
+                    .systemPrompt(systemPrompt)
+                    .prompt(userPrompt)
+                    .build()).getContent();
 
             return parseAndNormalizeResponse(modelContent);
 //            return objectMapper.readValue(modelContent, ProductOptimizeResponseVO.class);
@@ -126,6 +124,7 @@ public class AiProductServiceImpl implements AiProductService {
                                 
                 必须遵守：
                 1) 不能编造未提供的信息（如发票、保修、配件完整、无拆修等）。
+                1.1) 用户明确提供的型号、容量、电池健康度、配件、维修史、发票和来源信息必须保留，不能省略或反转。
                 2) 不使用夸张营销词（如“全网最低”“闭眼入”）。
                 3) 语气客观自然，避免口语废话。
                 4) 仅输出 JSON，不要 markdown，不要解释，不要前后缀文字。

@@ -1,6 +1,7 @@
 package org.example.online_used_marketplace.modules.ai.service;
 
 import org.example.online_used_marketplace.modules.ai.vo.ChunkPayloadVO;
+import org.example.online_used_marketplace.modules.ai.entity.KnowledgeDoc;
 
 import java.util.List;
 
@@ -13,4 +14,6 @@ import java.util.List;
  */
 public interface ChunkingService {
     List<ChunkPayloadVO> split(Long docId, String content, int chunkSize, int overlap);
+
+    List<ChunkPayloadVO> split(KnowledgeDoc doc, int chunkSize, int overlap);
 }

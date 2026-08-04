@@ -1,0 +1,18 @@
+[
+  {"caseId":"AIOPS-LOOP-001","requirementIds":["AIOPS-AC-001"],"scenario":"admin_approve"},
+  {"caseId":"AIOPS-LOOP-002","requirementIds":["AIOPS-AC-002"],"scenario":"internal_approve_denied"},
+  {"caseId":"AIOPS-LOOP-003","requirementIds":["AIOPS-AC-002"],"scenario":"user_approve_denied"},
+  {"caseId":"AIOPS-LOOP-004","requirementIds":["AIOPS-AC-001"],"scenario":"admin_reject"},
+  {"caseId":"AIOPS-LOOP-005","requirementIds":["AIOPS-AC-002"],"scenario":"internal_reject_denied"},
+  {"caseId":"AIOPS-LOOP-006","requirementIds":["AIOPS-AC-002"],"scenario":"direct_resolved_denied"},
+  {"caseId":"AIOPS-LOOP-007","requirementIds":["AIOPS-AC-001"],"scenario":"unapproved_execute_conflict"},
+  {"caseId":"AIOPS-LOOP-008","requirementIds":["AIOPS-AC-002"],"scenario":"internal_dry_run"},
+  {"caseId":"AIOPS-LOOP-009","requirementIds":["AIOPS-AC-001"],"scenario":"repair_and_verify","maxLatencyMs":15000},
+  {"caseId":"AIOPS-LOOP-010","requirementIds":["AIOPS-AC-004"],"scenario":"idempotent_replay","maxLatencyMs":3000},
+  {"caseId":"AIOPS-LOOP-011","requirementIds":["AIOPS-AC-003"],"scenario":"execution_failure_escalates","maxLatencyMs":8000},
+  {"caseId":"AIOPS-LOOP-012","requirementIds":["AIOPS-AC-003"],"scenario":"escalation_audit_fields"},
+  {"caseId":"AIOPS-LOOP-013","requirementIds":["AIOPS-AC-001"],"scenario":"manual_override"},
+  {"caseId":"AIOPS-LOOP-014","requirementIds":["AIOPS-AC-005"],"scenario":"mttr_average"},
+  {"caseId":"AIOPS-LOOP-015","requirementIds":["AIOPS-AC-005"],"scenario":"mttr_p50"},
+  {"caseId":"AIOPS-LOOP-016","requirementIds":["AIOPS-AC-005"],"scenario":"mttr_p95"}
+]

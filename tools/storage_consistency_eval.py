@@ -152,6 +152,7 @@ def write_report(results: list[DocConsistencyResult], summary: dict[str, Any], l
     lines.append("|---:|---:|---:|---:|---:|")
     for r in results:
         lines.append(f"| {r.doc_id} | {str(r.ok).lower()} | {r.db_count} | {r.es_count} | {r.milvus_count} |")
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

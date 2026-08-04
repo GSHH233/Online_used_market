@@ -241,6 +241,26 @@ public class MilvusVectorStoreImpl implements VectorStore {
     }
 
     @Override
+    public void deleteByChunkIds(List<Long> chunkIds) {
+        if (!isReady() || chunkIds == null || chunkIds.isEmpty()) {
+            return;
+        }
+        List<Long> ids = chunkIds.stream().filter(Objects::nonNull).distinct().toList();
+        for (int start = 0; start < ids.size(); start += 500) {
+            List<Long> batch = ids.subList(start, Math.min(start + 500, ids.size()));
+            String values = batch.stream().map(String::valueOf).collect(java.util.stream.Collectors.joining(","));
+            try {
+                client.delete(DeleteReq.builder()
+                        .collectionName(properties.getMilvus().getCollectionName())
+                        .filter("chunk_id in [" + values + "]")
+                        .build());
+            } catch (Exception e) {
+                throw new IllegalStateException("Milvus chunk cleanup failed: " + e.getMessage(), e);
+            }
+        }
+    }
+
+    @Override
     public List<Map<String, Object>> debugQueryByDocId(Long docId, Integer limit) {
         if (!isReady() || docId == null) {
             return Collections.emptyList();
@@ -462,6 +482,7 @@ public class MilvusVectorStoreImpl implements VectorStore {
                         vo.setEffectiveTo(getAsString(meta, "effectiveTo"));
                         vo.setDocStatus(getAsString(meta, "docStatus"));
                         vo.setDisabledReason(getAsString(meta, "disabledReason"));
+                        vo.setIndexVersion(getAsString(meta, "indexVersion"));
                     } catch (Exception ignore) {
                         // metadata_json 解析失败不影响主流程
                     }

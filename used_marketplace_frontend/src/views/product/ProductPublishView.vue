@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { AlertTriangle, ImagePlus, Sparkles } from 'lucide-vue-next'
-import { aiApi } from '../../api/modules/ai'
+import { AlertTriangle, Check, FileText, ImagePlus, Sparkles } from 'lucide-vue-next'
+import {
+  publishAssistantApi,
+  type PublishAssistResult,
+} from '../../api/modules/publishAssistant'
 import { productApi } from '../../api/modules/product'
 import { useAuthStore } from '../../stores/auth'
 
@@ -11,19 +14,6 @@ const auth = useAuthStore()
 
 const PRODUCT_DRAFT_KEY = 'ai_publish_product_draft'
 const PRODUCT_FORM_DRAFT_KEY = 'product_publish_form_draft'
-const ASSIST_PREFILL_KEY = 'ai_publish_assist_prefill'
-
-type PublishAssistResult = {
-  optimizeResult?: {
-    optimizedTitle?: string
-    optimizedDescription?: string
-    riskWarnings?: string[]
-  }
-  riskScore?: number
-  riskWarnings?: string[]
-  priceSuggestion?: string
-  canPublish?: boolean
-}
 
 const form = reactive({
   title: '',
@@ -44,6 +34,7 @@ const draftNotice = ref('')
 const assistLoading = ref(false)
 const assistError = ref('')
 const assistResult = ref<PublishAssistResult | null>(null)
+const adoptedFields = ref<string[]>([])
 const manualImageUrl = ref('')
 
 const coverPreview = computed(() => form.imageUrls[0] || '')
@@ -148,10 +139,19 @@ async function submit() {
       categoryId: form.categoryId ? Number(form.categoryId) : undefined,
       locationText: form.locationText.trim() || undefined,
       imageUrls: form.imageUrls,
+      assistId: assistResult.value?.assistId,
+      assistAdoptionType: assistResult.value
+        ? adoptedFields.value.length >= 2
+          ? 'APPLIED'
+          : adoptedFields.value.length
+            ? 'PARTIAL'
+            : 'REJECTED'
+        : undefined,
+      assistAdoptedFields: adoptedFields.value,
     })
+    const productId = (created as any)?.productId || (created as any)?.id
     success.value = '商品发布成功，正在跳转到详情页。'
     clearFormDraft()
-    const productId = (created as any)?.productId || (created as any)?.id
     resetForm()
     setTimeout(() => {
       if (productId) router.push(`/products/${productId}`)
@@ -164,33 +164,21 @@ async function submit() {
   }
 }
 
-function goAssist() {
-  if (hasFormContent.value) {
-    localStorage.setItem(ASSIST_PREFILL_KEY, JSON.stringify({
-      title: form.title,
-      description: form.description,
-      categoryName: form.categoryId ? `分类 ${form.categoryId}` : '',
-      conditionText: conditionTextFromLevel(form.conditionLevel),
-      expectedPrice: Number(form.price || 0),
-    }))
-  }
-  router.push('/ai/publish-assist')
-}
-
 async function runAssistFromForm() {
   resetMessages()
   if (!form.title.trim()) return (assistError.value = '请先填写商品标题')
   if (!form.description.trim()) return (assistError.value = '请先填写商品描述')
   assistLoading.value = true
   try {
-    assistResult.value = (await aiApi.publishAssist({
+    assistResult.value = await publishAssistantApi.analyze({
       title: form.title.trim(),
       description: form.description.trim(),
       brand: '',
       conditionText: conditionTextFromLevel(form.conditionLevel),
       categoryName: form.categoryId ? `分类 ${form.categoryId}` : '',
       expectedPrice: Number(form.price || 0),
-    })) as PublishAssistResult
+    })
+    adoptedFields.value = []
   } catch (e: any) {
     assistError.value = e?.message || 'AI 检查失败，可以先手动发布，稍后再补充优化。'
   } finally {
@@ -198,10 +186,23 @@ async function runAssistFromForm() {
   }
 }
 
-function applyAssistCopy() {
-  if (assistOptimize.value.optimizedTitle) form.title = assistOptimize.value.optimizedTitle
-  if (assistOptimize.value.optimizedDescription) form.description = assistOptimize.value.optimizedDescription
-  success.value = '已套用 AI 优化文案，请再确认是否与真实商品一致。'
+function applyAssistField(field: 'title' | 'description') {
+  const value = field === 'title'
+    ? assistOptimize.value.optimizedTitle
+    : assistOptimize.value.optimizedDescription
+  if (!value) return
+  form[field] = value
+  if (!adoptedFields.value.includes(field)) adoptedFields.value.push(field)
+  success.value = `已采用${field === 'title' ? '标题' : '描述'}建议，请确认内容与实物一致。`
+  if (assistResult.value?.assistId) {
+    publishAssistantApi.feedback(assistResult.value.assistId, {
+      adoptionType: 'PARTIAL',
+      adoptedFields: adoptedFields.value,
+      reason: 'user_applied_ai_field_before_publish',
+    }).catch(() => {
+      assistError.value = '已套用文案，但采纳反馈暂未写入。'
+    })
+  }
 }
 
 function resetForm() {
@@ -215,6 +216,7 @@ function resetForm() {
   form.imageUrls = []
   manualImageUrl.value = ''
   assistResult.value = null
+  adoptedFields.value = []
   draftNotice.value = ''
 }
 
@@ -268,6 +270,8 @@ function loadAiDraft() {
     form.price = draft.price || form.price
     form.conditionLevel = Number(draft.conditionLevel || form.conditionLevel)
     assistResult.value = {
+      assistId: draft.assistId,
+      traceId: draft.traceId,
       canPublish: draft.aiDecision === '建议发布',
       riskScore: draft.riskScore,
       priceSuggestion: draft.priceSuggestion,
@@ -276,7 +280,7 @@ function loadAiDraft() {
         optimizedTitle: draft.title,
         optimizedDescription: draft.description,
       },
-    }
+    } as PublishAssistResult
     draftNotice.value = '已从发布助手带入优化文案'
     localStorage.removeItem(PRODUCT_DRAFT_KEY)
   } catch {
@@ -308,7 +312,6 @@ watch(form, saveFormDraft, { deep: true })
         <p class="muted">标题、成色、价格和图片越完整，买家越容易判断，也能减少交易争议。</p>
       </div>
       <div class="chip-row">
-        <button class="secondary-btn" type="button" @click="goAssist">发布前 AI 检查</button>
         <button class="secondary-btn" type="button" :disabled="!hasFormContent" @click="clearCurrentDraft">清空草稿</button>
       </div>
     </section>
@@ -328,6 +331,9 @@ watch(form, saveFormDraft, { deep: true })
 
       <p v-if="draftNotice" class="success-msg">{{ draftNotice }}</p>
       <p v-if="assistError" class="error">{{ assistError }}</p>
+      <p v-if="assistResult?.fallbackUsed" class="fallback-note">
+        当前由规则与知识证据完成检查，模型生成暂不可用。{{ assistResult.fallbackReason || '' }}
+      </p>
 
       <div v-if="assistResult" class="ai-result-grid">
         <div class="ai-summary">
@@ -341,15 +347,32 @@ watch(form, saveFormDraft, { deep: true })
         <div class="ai-copy-card">
           <span>优化标题</span>
           <p>{{ assistOptimize.optimizedTitle || '暂无标题建议' }}</p>
+          <button
+            v-if="assistOptimize.optimizedTitle"
+            class="secondary-btn"
+            type="button"
+            @click="applyAssistField('title')"
+          >
+            <Check :size="15" aria-hidden="true" />
+            {{ adoptedFields.includes('title') ? '已采用' : '采用标题' }}
+          </button>
         </div>
         <div class="ai-copy-card">
           <span>优化描述</span>
           <p>{{ assistOptimize.optimizedDescription || '暂无描述建议' }}</p>
+          <button
+            v-if="assistOptimize.optimizedDescription"
+            class="secondary-btn"
+            type="button"
+            @click="applyAssistField('description')"
+          >
+            <Check :size="15" aria-hidden="true" />
+            {{ adoptedFields.includes('description') ? '已采用' : '采用描述' }}
+          </button>
         </div>
       </div>
 
       <div v-if="assistResult" class="ai-actions">
-        <button class="secondary-btn" type="button" @click="applyAssistCopy">套用标题和描述</button>
         <p class="muted">{{ assistResult.priceSuggestion || '价格建议仅作参考，不会自动覆盖你填写的价格。' }}</p>
       </div>
 
@@ -359,6 +382,19 @@ watch(form, saveFormDraft, { deep: true })
           {{ item }}
         </li>
       </ul>
+
+      <details v-if="assistResult?.riskEvidence?.length || assistResult?.sources?.length" class="evidence-panel">
+        <summary><FileText :size="16" aria-hidden="true" />查看判断依据</summary>
+        <div class="evidence-list">
+          <article
+            v-for="(item, index) in (assistResult.riskEvidence?.length ? assistResult.riskEvidence : assistResult.sources)"
+            :key="`${item.docId || 0}-${item.chunkId || index}`"
+          >
+            <strong>{{ item.title || `依据 ${index + 1}` }}</strong>
+            <p>{{ item.content || item.source || '知识库规则命中' }}</p>
+          </article>
+        </div>
+      </details>
     </section>
 
     <div class="grid two-col">
@@ -493,11 +529,56 @@ watch(form, saveFormDraft, { deep: true })
   white-space: pre-wrap;
 }
 
+.ai-copy-card .secondary-btn {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 .ai-actions {
   align-items: center;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+}
+
+.fallback-note {
+  background: rgba(157, 116, 32, 0.08);
+  border-left: 3px solid #9d7420;
+  color: var(--ink-700);
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.evidence-panel {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+
+.evidence-panel summary {
+  align-items: center;
+  cursor: pointer;
+  display: inline-flex;
+  font-weight: 750;
+  gap: 7px;
+}
+
+.evidence-list {
+  display: grid;
+  gap: 9px;
+  margin-top: 10px;
+}
+
+.evidence-list article {
+  border-left: 2px solid var(--line-strong);
+  padding-left: 11px;
+}
+
+.evidence-list p {
+  color: var(--ink-700);
+  line-height: 1.65;
+  margin: 4px 0 0;
 }
 
 .ai-actions p {

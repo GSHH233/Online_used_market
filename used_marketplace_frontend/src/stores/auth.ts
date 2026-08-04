@@ -11,6 +11,7 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoggedIn = computed(() => Boolean(token.value))
   const normalizedRole = computed(() => normalizeRole(role.value))
   const isInternal = computed(() => ['ADMIN', 'INTERNAL'].includes(normalizedRole.value))
+  const isAdmin = computed(() => normalizedRole.value === 'ADMIN')
 
   function setToken(next: string) {
     token.value = next
@@ -27,6 +28,10 @@ export const useAuthStore = defineStore('auth', () => {
     setToken('')
     localStorage.removeItem(ROLE_KEY)
     role.value = 'USER'
+  }
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('market:unauthorized', logout)
   }
 
   async function login(payload: { account: string; password: string; loginType: string }) {
@@ -51,7 +56,7 @@ export const useAuthStore = defineStore('auth', () => {
     return authApi.register(payload)
   }
 
-  return { token, role, normalizedRole, isInternal, isLoggedIn, login, smsSend, smsLogin, register, logout }
+  return { token, role, normalizedRole, isInternal, isAdmin, isLoggedIn, login, smsSend, smsLogin, register, logout }
 })
 
 function normalizeRole(value?: string) {

@@ -2,11 +2,15 @@
 import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  Activity,
+  BarChart3,
   Bot,
   Boxes,
   ChevronDown,
+  ClipboardList,
   Heart,
   Home,
+  LibraryBig,
   LogOut,
   Menu,
   PackagePlus,
@@ -37,11 +41,10 @@ const userMenus: MenuItem[] = [
 ]
 
 const internalMenus: MenuItem[] = [
-  { path: '/ai/eval-dashboard', label: '评测看板' },
-  { path: '/ai/knowledge', label: '知识库' },
-  { path: '/ai/react-agent', label: 'ReAct' },
-  { path: '/ai/graph-agent', label: 'Graph' },
-  { path: '/ai/storage-consistency', label: '存储一致性' },
+  { path: '/ai/eval-dashboard', label: '运营总览', icon: BarChart3 },
+  { path: '/ai/knowledge', label: '知识治理', icon: LibraryBig },
+  { path: '/ai/investigate', label: '智能排查', icon: Activity },
+  { path: '/ai/runtime', label: '运行记录', icon: ClipboardList },
 ]
 
 const roleLabel = computed(() => {
@@ -50,14 +53,14 @@ const roleLabel = computed(() => {
   return '普通用户'
 })
 
-const internalRoute = computed(() =>
-  internalMenus.some((item) => route.path === item.path),
-)
+const internalRoute = computed(() => route.path.startsWith('/ai/') && route.path !== '/ai/rag-chat')
 
 function isActive(path: string) {
   if (path === '/products') {
     return route.path === '/products' || /^\/products\/\d+$/.test(route.path)
   }
+  if (path === '/ai/runtime') return route.path.startsWith('/ai/runtime')
+  if (path === '/ai/knowledge') return route.path.startsWith('/ai/knowledge')
   return route.path === path
 }
 
@@ -151,14 +154,15 @@ function logout() {
 
     <nav v-if="auth.isInternal && internalRoute" class="internal-nav" aria-label="内部控制台导航">
       <div class="internal-nav-inner">
-        <span>内部工具</span>
+          <span>运营后台</span>
         <button
           v-for="item in internalMenus"
           :key="item.path"
-          :class="{ active: route.path === item.path }"
+            :class="{ active: isActive(item.path) }"
           type="button"
           @click="go(item.path)"
         >
+          <component :is="item.icon" :size="15" aria-hidden="true" />
           {{ item.label }}
         </button>
       </div>
@@ -388,11 +392,14 @@ function logout() {
 }
 
 .internal-nav button {
+  align-items: center;
   background: transparent;
   border: 0;
   color: rgba(255, 255, 255, 0.72);
+  display: inline-flex;
   flex: 0 0 auto;
   font-size: 12px;
+  gap: 6px;
   padding: 7px 9px;
 }
 

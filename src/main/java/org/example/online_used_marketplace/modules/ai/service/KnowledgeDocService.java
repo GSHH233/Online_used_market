@@ -3,10 +3,11 @@ package org.example.online_used_marketplace.modules.ai.service;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeDocCreateRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeDocGovernanceUpdateDTO;
 import org.example.online_used_marketplace.modules.ai.entity.KnowledgeDoc;
+import org.example.online_used_marketplace.modules.ai.enums.KnowledgeDocStatus;
+import org.example.online_used_marketplace.modules.ai.enums.KnowledgeSourceType;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeDocVO;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * @author Admin
@@ -17,10 +18,9 @@ import java.util.Map;
  */
 public interface KnowledgeDocService {
     KnowledgeDocVO createDoc(KnowledgeDocCreateRequestDTO dto);
+    KnowledgeDocVO getVO(Long docId);
     KnowledgeDoc getByIdOrThrow(Long docId);
     KnowledgeDocVO updateGovernance(Long docId, KnowledgeDocGovernanceUpdateDTO dto);
-
-
-
-
+    List<KnowledgeDocVO> list(String keyword, KnowledgeDocStatus status,
+                              KnowledgeSourceType sourceType, Integer limit);
 }

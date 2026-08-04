@@ -1,12 +1,14 @@
 package org.example.online_used_marketplace.modules.ai.service;
 
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationResult;
+
 /**
- * @author Admin
- * @ClassName: ChatGenerationService
- * @Description: TODO(这里用一句话描述这个类的作用)
- * @date 2026-05-06  13:46
- * @Version:
+ * 统一的模型生成出口。旧接口保留兼容，治理链路使用结构化请求获取 Token 用量。
  */
 public interface ChatGenerationService {
+
     String generate(String prompt);
+
+    TokenGenerationResult generate(TokenGenerationRequest request);
 }

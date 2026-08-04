@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.modules.ai.context.PublishAssistResult;
 import org.example.online_used_marketplace.modules.ai.context.PublishInputContext;
 import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistStep;
+import org.example.online_used_marketplace.modules.ai.enums.RiskLevel;
 import org.example.online_used_marketplace.modules.ai.service.ReplanService;
 import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Service;
@@ -19,7 +20,12 @@ public class DecisionStepImpl implements PublishAssistStep {
 
     @Override
     public void apply(PublishInputContext context, PublishAssistResult result) {
-        Boolean canPublish = replanService.decideCanPublish(result.getRiskScore());
+        boolean hasHardBlock = result.getRiskEvidence() != null && result.getRiskEvidence().stream()
+                .anyMatch(item -> item != null
+                        && item.getRiskLevel() == RiskLevel.HIGH
+                        && item.getRuleCode() != null
+                        && item.getRuleCode().startsWith("HIGH_"));
+        Boolean canPublish = !hasHardBlock && replanService.decideCanPublish(result.getRiskScore());
         result.setCanPublish(canPublish);
     }
 

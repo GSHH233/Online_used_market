@@ -288,6 +288,7 @@ def write_report(results: list[RepairResult], before: list[DocState], after: lis
             f"| {r.doc_id} | {str(r.attempted).lower()} | {str(r.reindex_ok).lower()} | "
             f"{str(r.before_ok).lower()} | {str(r.after_ok).lower()} | {r.latency_ms:.1f} | `{r.message}` |"
         )
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

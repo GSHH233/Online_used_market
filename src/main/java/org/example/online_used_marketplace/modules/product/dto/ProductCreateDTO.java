@@ -41,4 +41,11 @@ public class ProductCreateDTO {
 
     @NotEmpty(message = "商品图片至少上传一张")
     private List<@NotBlank(message = "图片地址不能为空") String> imageUrls;
+
+    @Size(max = 64, message = "assistId长度不能超过64")
+    private String assistId;
+
+    private String assistAdoptionType;
+
+    private List<String> assistAdoptedFields;
 }

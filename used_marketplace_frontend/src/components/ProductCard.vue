@@ -1,11 +1,25 @@
 <script setup lang="ts">
 import { Clock3, Heart, MapPin, PackageOpen } from 'lucide-vue-next'
+import { computed, ref } from 'vue'
 import type { ProductListItem } from '../types/market'
 
-defineProps<{
+const props = defineProps<{
   product: ProductListItem
   favoritePending?: boolean
 }>()
+
+const imageFailed = ref(false)
+const displayableImageUrl = computed(() => {
+  const value = props.product.mainImageUrl?.trim()
+  if (!value || value.startsWith('file:')) return ''
+  try {
+    const url = new URL(value, window.location.origin)
+    if (!['http:', 'https:'].includes(url.protocol) || url.hostname === 'example.invalid') return ''
+    return url.href
+  } catch {
+    return ''
+  }
+})
 
 defineEmits<{
   view: [product: ProductListItem]
@@ -44,7 +58,13 @@ function relativeTime(value?: string) {
 <template>
   <article class="market-product-card" @click="$emit('view', product)">
     <div class="market-product-image">
-      <img v-if="product.mainImageUrl" :src="product.mainImageUrl" :alt="product.title" loading="lazy" />
+      <img
+        v-if="displayableImageUrl && !imageFailed"
+        :src="displayableImageUrl"
+        :alt="product.title"
+        loading="lazy"
+        @error="imageFailed = true"
+      />
       <div v-else class="market-image-empty">
         <PackageOpen :size="28" aria-hidden="true" />
         <span>等待卖家补图</span>

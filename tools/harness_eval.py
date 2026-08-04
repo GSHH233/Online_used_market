@@ -327,6 +327,7 @@ def write_report(results: list[HarnessCaseResult], output: Path, run_id: str) ->
             f"| {r.case_id} | {str(r.ok).lower()} | {r.app_code} | {r.status} | {r.attempts} | {r.retry_count} | "
             f"{str(r.timeout).lower()} | {str(r.fallback_used).lower()} | {str(r.snapshot_restored).lower()} | {r.latency_ms:.1f} |"
         )
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 

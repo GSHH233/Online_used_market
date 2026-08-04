@@ -4,15 +4,18 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.common.Result;
 import org.example.online_used_marketplace.modules.ai.dto.AiopsEventCreateDTO;
+import org.example.online_used_marketplace.modules.ai.dto.AgentInvestigationRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.AgentTraceQueryDTO;
 import org.example.online_used_marketplace.modules.ai.dto.GraphAgentRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.ReactAgentRequestDTO;
 import org.example.online_used_marketplace.modules.ai.service.AgentTracePersistenceService;
+import org.example.online_used_marketplace.modules.ai.service.AgentInvestigationService;
 import org.example.online_used_marketplace.modules.ai.service.AiopsEventService;
 import org.example.online_used_marketplace.modules.ai.service.EvalDashboardService;
 import org.example.online_used_marketplace.modules.ai.service.GraphReactAgentService;
 import org.example.online_used_marketplace.modules.ai.service.ReactAgentService;
 import org.example.online_used_marketplace.modules.ai.vo.AgentTraceRunVO;
+import org.example.online_used_marketplace.modules.ai.vo.AgentInvestigationResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.EvalDashboardVO;
 import org.example.online_used_marketplace.modules.ai.vo.GraphAgentResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.ReactAgentResponseVO;
@@ -27,6 +30,7 @@ public class ReactAgentController {
 
     private final ReactAgentService reactAgentService;
     private final GraphReactAgentService graphReactAgentService;
+    private final AgentInvestigationService agentInvestigationService;
     private final AgentTracePersistenceService tracePersistenceService;
     private final EvalDashboardService evalDashboardService;
     private final AiopsEventService aiopsEventService;
@@ -43,6 +47,12 @@ public class ReactAgentController {
             tracePersistenceService.saveReactFailure(request, ex, startedMs);
             throw ex;
         }
+    }
+
+    @PostMapping("/investigate")
+    public Result<AgentInvestigationResponseVO> investigate(@Valid @RequestBody AgentInvestigationRequestDTO request) {
+        ToolAccessGuard.requireInternalEndpoint("agent_investigate");
+        return Result.success(agentInvestigationService.investigate(request));
     }
 
     @PostMapping("/graph-chat")

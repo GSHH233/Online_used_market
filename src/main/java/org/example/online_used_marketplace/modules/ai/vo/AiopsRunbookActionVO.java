@@ -22,6 +22,8 @@ public class AiopsRunbookActionVO {
 
     private Long actionId;
 
+    private String traceId;
+
     private String idempotencyKey;
 
     private String status;

@@ -1,5 +1,6 @@
 package org.example.online_used_marketplace.modules.ai.service.impl;
 
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
@@ -50,6 +51,15 @@ public class KnowledgeDocServiceImpl implements KnowledgeDocService {
         knowledgeDoc.setContent(dto.getContent().trim());
         knowledgeDoc.setSourceType(dto.getSourceType().name());
         knowledgeDoc.setSourceUri(dto.getSourceUri());
+        knowledgeDoc.setFileName(dto.getFileName());
+        knowledgeDoc.setMimeType(dto.getMimeType());
+        knowledgeDoc.setFileHash(dto.getFileHash());
+        knowledgeDoc.setParserType(dto.getParserType());
+        knowledgeDoc.setParserVersion(dto.getParserVersion());
+        knowledgeDoc.setStructureJson(dto.getStructureJson());
+        knowledgeDoc.setChunkStrategyVersion(dto.getChunkStrategyVersion());
+        knowledgeDoc.setEmbeddingModel(dto.getEmbeddingModel());
+        knowledgeDoc.setActiveIndexVersion(null);
         knowledgeDoc.setTags(dto.getTags());
         knowledgeDoc.setSourceTrustLevel(normalizeTrustLevel(dto.getSourceTrustLevel()));
         knowledgeDoc.setEffectiveFrom(dto.getEffectiveFrom());
@@ -110,7 +120,35 @@ public class KnowledgeDocServiceImpl implements KnowledgeDocService {
         vo.setDisabledReason(knowledgeDoc.getDisabledReason());
         vo.setStatus(KnowledgeDocStatus.valueOf(knowledgeDoc.getStatus()));
         vo.setCreatedTime(knowledgeDoc.getCreatedTime());
+        vo.setFileName(knowledgeDoc.getFileName());
+        vo.setMimeType(knowledgeDoc.getMimeType());
+        vo.setFileHash(knowledgeDoc.getFileHash());
+        vo.setParserType(knowledgeDoc.getParserType());
+        vo.setParserVersion(knowledgeDoc.getParserVersion());
+        vo.setChunkStrategyVersion(knowledgeDoc.getChunkStrategyVersion());
+        vo.setEmbeddingModel(knowledgeDoc.getEmbeddingModel());
+        vo.setActiveIndexVersion(knowledgeDoc.getActiveIndexVersion());
         return vo;
+    }
+
+    @Override
+    public KnowledgeDocVO getVO(Long docId) {
+        return toVO(getByIdOrThrow(docId));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<KnowledgeDocVO> list(String keyword, KnowledgeDocStatus status,
+                                     KnowledgeSourceType sourceType, Integer limit) {
+        int normalizedLimit = Math.max(1, Math.min(limit == null ? 30 : limit, 100));
+        LambdaQueryWrapper<KnowledgeDoc> query = new LambdaQueryWrapper<>();
+        query.like(StringUtils.hasText(keyword), KnowledgeDoc::getTitle,
+                        StringUtils.hasText(keyword) ? keyword.trim() : null)
+                .eq(status != null, KnowledgeDoc::getStatus, status == null ? null : status.name())
+                .eq(sourceType != null, KnowledgeDoc::getSourceType, sourceType == null ? null : sourceType.name())
+                .orderByDesc(KnowledgeDoc::getUpdatedTime, KnowledgeDoc::getId)
+                .last("LIMIT " + normalizedLimit);
+        return knowledgeDocMapper.selectList(query).stream().map(this::toVO).toList();
     }
 
     @Override

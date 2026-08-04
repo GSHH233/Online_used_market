@@ -11,5 +11,5 @@ import org.example.online_used_marketplace.modules.ai.vo.ProductPublishAssistVO;
  * @Version:
  */
 public interface AiPublishAssistService {
-    ProductPublishAssistVO assist(ProductPublishAssistRequestDTO request);
+    ProductPublishAssistVO assist(ProductPublishAssistRequestDTO request, Long userId);
 }

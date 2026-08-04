@@ -224,11 +224,11 @@ watch(
     </section>
 
     <nav v-if="products.length" class="market-pagination" aria-label="商品分页">
-      <button class="icon-btn" type="button" :disabled="loading || form.pageNum <= 1" title="上一页" @click="prevPage">
+      <button class="icon-btn" type="button" :disabled="loading || form.pageNum <= 1" title="上一页" aria-label="上一页" @click="prevPage">
         <ChevronLeft :size="19" aria-hidden="true" />
       </button>
       <span>第 {{ form.pageNum }} / {{ pages || 1 }} 页</span>
-      <button class="icon-btn" type="button" :disabled="loading || (pages > 0 && form.pageNum >= pages)" title="下一页" @click="nextPage">
+      <button class="icon-btn" type="button" :disabled="loading || (pages > 0 && form.pageNum >= pages)" title="下一页" aria-label="下一页" @click="nextPage">
         <ChevronRight :size="19" aria-hidden="true" />
       </button>
     </nav>

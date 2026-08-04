@@ -7,6 +7,10 @@ import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.agent.AgentAction;
 import org.example.online_used_marketplace.modules.ai.agent.AgentTool;
 import org.example.online_used_marketplace.modules.ai.agent.AgentToolRegistry;
+import org.example.online_used_marketplace.modules.ai.agent.planner.AgentPlan;
+import org.example.online_used_marketplace.modules.ai.agent.planner.AgentPlanStep;
+import org.example.online_used_marketplace.modules.ai.agent.planner.AgentReplanDecision;
+import org.example.online_used_marketplace.modules.ai.agent.planner.HybridAgentPlanner;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContext;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContextBuilder;
 import org.example.online_used_marketplace.modules.ai.dto.ReactAgentRequestDTO;
@@ -15,6 +19,11 @@ import org.example.online_used_marketplace.modules.ai.agent.harness.ToolExecutio
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
 import org.example.online_used_marketplace.modules.ai.service.ReactAgentService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
+import org.example.online_used_marketplace.modules.ai.service.TokenGovernanceService;
+import org.example.online_used_marketplace.modules.ai.token.TokenBudgetResult;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenPromptSection;
+import org.example.online_used_marketplace.modules.ai.token.TokenScene;
 import org.example.online_used_marketplace.modules.ai.vo.AgentTraceStepVO;
 import org.example.online_used_marketplace.modules.ai.vo.ReactAgentResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.RagSourceVO;
@@ -25,6 +34,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,6 +55,8 @@ public class ReactAgentServiceImpl implements ReactAgentService {
     private final ChatGenerationService chatGenerationService;
     private final SessionSummaryService sessionSummaryService;
     private final AgentRuntimeContextBuilder runtimeContextBuilder;
+    private final HybridAgentPlanner hybridAgentPlanner;
+    private final TokenGovernanceService tokenGovernanceService;
 
     @Override
     public ReactAgentResponseVO run(ReactAgentRequestDTO request) {
@@ -60,30 +72,71 @@ public class ReactAgentServiceImpl implements ReactAgentService {
         response.setMode(mode);
 
         AgentRuntimeContext runtimeContext = runtimeContextBuilder.build("react", request.getSessionId(), traceId, mode, question, maxSteps);
-        List<AgentAction> plan = plan(question, runtimeContext, traceId, mode);
+        AgentPlan generatedPlan = hybridAgentPlanner.plan(question, runtimeContext, traceId, mode, maxSteps);
+        List<AgentAction> plan = toActions(generatedPlan.getSteps());
+        List<AgentAction> executedPlan = new ArrayList<>(plan);
         Map<String, Object> planMetadata = new LinkedHashMap<>();
         planMetadata.put("availableTools", toolRegistry.names());
         planMetadata.put("runtimeContext", runtimeContext.safeMetadata());
-        addTrace(response, "plan", null, "SUCCESS", "根据问题选择工具", "actions=" + plan.stream().map(AgentAction::getTool).toList(), "已生成规则版执行计划", 0L, List.of(), planMetadata);
+        planMetadata.put("planner", generatedPlan.getPlannerType());
+        planMetadata.put("reason", generatedPlan.getReason());
+        planMetadata.put("fallback", generatedPlan.isFallback());
+        planMetadata.put("validationWarnings", generatedPlan.getValidationWarnings());
+        addTrace(response, "plan", null, "SUCCESS", "根据问题选择工具",
+                "actions=" + plan.stream().map(AgentAction::getTool).toList(),
+                "已生成混合 Planner 执行计划", 0L, List.of(), planMetadata);
 
         int executed = 0;
+        Set<String> usedTools = new LinkedHashSet<>();
         for (AgentAction action : plan) {
             if (executed >= maxSteps) {
                 addTrace(response, "replan", null, "SKIPPED", "达到最大工具步数", action.getTool(), "后续动作已跳过", 0L, List.of(), Map.of("maxSteps", maxSteps));
                 break;
             }
             executeAction(response, action, mode);
+            usedTools.add(action.getTool());
             executed++;
         }
 
+        int replanRounds = 0;
+        for (int round = 1; round <= hybridAgentPlanner.maxReplans() && executed < maxSteps; round++) {
+            AgentReplanDecision decision = hybridAgentPlanner.replan(
+                    question, runtimeContext, traceId, mode, response.getObservations(),
+                    usedTools, maxSteps - executed, round
+            );
+            if (!decision.isReplan()) {
+                addTrace(response, "replan", null, "SKIPPED", decision.getReason(),
+                        "round=" + round, "无需追加工具", 0L, List.of(),
+                        Map.of("round", round, "validationWarnings", decision.getValidationWarnings()));
+                break;
+            }
+            replanRounds++;
+            List<AgentAction> extraActions = toActions(decision.getSteps());
+            addTrace(response, "replan", null, "SUCCESS", decision.getReason(),
+                    "actions=" + extraActions.stream().map(AgentAction::getTool).toList(),
+                    "Observation 触发有限动态 Replan", 0L, List.of(),
+                    Map.of("round", round, "remainingSteps", maxSteps - executed,
+                            "validationWarnings", decision.getValidationWarnings()));
+            for (AgentAction action : extraActions) {
+                if (executed >= maxSteps) {
+                    break;
+                }
+                executeAction(response, action, mode);
+                usedTools.add(action.getTool());
+                executedPlan.add(action);
+                executed++;
+            }
+        }
+
         response.setSources(extractSources(response.getObservations()));
-        response.setAnswer(buildFinalAnswer(question, runtimeContext, response.getObservations()));
+        response.setAnswer(buildFinalAnswer(traceId, question, runtimeContext, response.getObservations()));
         response.setSuccess(true);
-        response.setDebugInfo("planner=rule,maxSteps=" + maxSteps
+        response.setDebugInfo("planner=" + generatedPlan.getPlannerType() + ",maxSteps=" + maxSteps
+                + ",replanRounds=" + replanRounds
                 + ",runtimeContext=enabled,contextChars=" + runtimeContext.getPromptChars()
                 + ",l2=" + runtimeContext.getL2MemoryLines().size()
                 + ",graph=" + runtimeContext.getGraphMemoryLines().size()
-                + ",tools=" + plan.stream().map(AgentAction::getTool).toList());
+                + ",tools=" + executedPlan.stream().map(AgentAction::getTool).toList());
         addTrace(response, "final", null, "SUCCESS", "汇总 Observation 生成回答", "final_answer", "回答已生成", 0L, response.getSources().stream().map(RagSourceVO::getDocId).filter(java.util.Objects::nonNull).toList(), Map.of());
         sessionSummaryService.refreshSummaryIfNeeded(request.getSessionId(), question, response.getAnswer());
         return response;
@@ -239,27 +292,33 @@ public class ReactAgentServiceImpl implements ReactAgentService {
         return best;
     }
 
-    private String buildFinalAnswer(String question, AgentRuntimeContext runtimeContext, List<ToolQueryResultVO> observations) {
+    private String buildFinalAnswer(String traceId, String question, AgentRuntimeContext runtimeContext,
+                                    List<ToolQueryResultVO> observations) {
         String observationText = summarizeObservations(observations);
         String runtimeContextBlock = runtimeContext == null ? "" : runtimeContext.getPromptBlock();
-        String prompt = """
+        String rules = """
                 你是 ReAct-style 工具 Agent。请基于 Observation 回答用户问题。
-                规则：
-                1. 必须说明用了哪些工具和关键观察结果。
-                2. 不要编造 Observation 之外的金额、规则、日志或数据库结果。
-                3. 如果工具被拒绝或失败，明确说明限制，并给出下一步建议。
-                4. 回答保持简洁，优先给结论，尽量控制在 180 字以内。
-                5. 用户问题里明确给出的当前事实必须保留，例如型号、品类、检测结果、配件、状态，不要被历史偏好覆盖。
-                6. Runtime Context 只能用于多轮延续、默认参数和表达偏好，不得覆盖本轮用户输入和 Observation。
-                Runtime Context:
-                %s
-                用户问题：
-                %s
-                Observation:
-                %s
-                """.formatted(StringUtils.hasText(runtimeContextBlock) ? runtimeContextBlock : "（无）", question, observationText);
+                1. 必须说明使用的工具和关键观察结果。
+                2. 不得编造 Observation 之外的金额、规则、日志或数据库结果。
+                3. 工具被拒绝或失败时说明限制和下一步建议。
+                4. 优先给结论，控制在 180 字以内。
+                5. Runtime Context 不得覆盖本轮输入和 Observation。
+                """;
+        TokenBudgetResult tokenBudget = tokenGovernanceService.assemble(TokenScene.AGENT_FINAL, List.of(
+                TokenPromptSection.of("回答约束", rules, 100, true),
+                TokenPromptSection.of("本轮问题", question, 100, true),
+                TokenPromptSection.of("Observation", observationText, 95, true),
+                TokenPromptSection.of("Runtime Context",
+                        StringUtils.hasText(runtimeContextBlock) ? runtimeContextBlock : "（无）", 30, false)
+        ));
+        String prompt = tokenBudget.getPrompt();
         try {
-            String generated = chatGenerationService.generate(prompt);
+            String generated = chatGenerationService.generate(TokenGenerationRequest.builder()
+                    .scene(TokenScene.AGENT_FINAL)
+                    .traceId(traceId)
+                    .prompt(prompt)
+                    .budgetResult(tokenBudget)
+                    .build()).getContent();
             return postProcessAnswer(StringUtils.hasText(generated) ? generated : fallbackAnswer(observations), question, observations);
         } catch (Exception ex) {
             return postProcessAnswer(fallbackAnswer(observations), question, observations);
@@ -448,6 +507,12 @@ public class ReactAgentServiceImpl implements ReactAgentService {
 
     private AgentAction action(String tool, String thought, Map<String, Object> input) {
         return new AgentAction(tool, thought, input);
+    }
+
+    private List<AgentAction> toActions(List<AgentPlanStep> steps) {
+        return (steps == null ? List.<AgentPlanStep>of() : steps).stream()
+                .map(step -> action(step.getTool(), step.getThought(), step.getInput()))
+                .toList();
     }
 
     private List<AgentAction> dedup(List<AgentAction> actions) {
