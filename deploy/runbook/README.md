@@ -17,11 +17,20 @@ curl --fail http://127.0.0.1:18080/
 Use SSH public-key authentication from the Spring Boot host. Do not place an
 SSH password or private-key content in `application.yml`.
 
-The normal path snapshots the current image, restarts the container, and lets
+The helper creates a dedicated bridge network named `used-market-runbook-net`;
+it does not attach existing project containers to that network. The normal
+path snapshots the current image, restarts the container, and lets
 the Java executor perform an HTTP health check. If that check fails, the Java
 executor calls the fixed `remove` and `recreate` actions. They recreate only the
 disposable container from the pinned `nginx:1.27-alpine` image before a second
 health check.
+
+After live verification, remove only the disposable target and its dedicated
+network:
+
+```bash
+sudo /usr/local/sbin/used-market-docker-runbook cleanup marketplace-demo-web
+```
 
 ## Enable the Spring Boot adapter
 

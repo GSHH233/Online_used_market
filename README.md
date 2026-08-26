@@ -128,7 +128,7 @@ Python 评测命令集中在 [docs/EVAL_SCRIPT_COMMANDS.md](docs/EVAL_SCRIPT_COM
 | 修复闭环 | 16 cases | 16/16，包含审批、验证、升级和 MTTR |
 | Durable Runtime | 15 cases | 15/15，恢复成功率 100%，重复副作用 0 |
 | 文档入库 | MD/PDF/DOCX/异常样例，20 cases | 20/20，P95 2.324 s |
-| 隔离 Docker Runbook | 10 JUnit + 7 API contract cases | 单元测试 10/10；API 非写入项 5/5，2 个 VM 实机项待 SSH 环境验收 |
+| 隔离 Docker Runbook | 10 JUnit + 7 live API cases | 单元测试 10/10、VM 实机 API 7/7；不健康夹具触发真实回滚并恢复 HTTP 200 |
 
 这组数据主要用于回归和比较版本，不把针对开发集调优后的通过率当作未知问题泛化结论。
 
@@ -142,7 +142,7 @@ INTERNAL 创建计划 -> ADMIN 审批 -> 固定 helper 重启容器
 -> RESOLVED 或 ESCALATED + trace/audit
 ```
 
-VM 侧安装说明见 [deploy/runbook/README.md](deploy/runbook/README.md)。应用默认禁用该动作；启用时使用 SSH 公钥和 root-owned helper，不能传入容器名、镜像、端口或 shell 命令。PostgreSQL、ES、Milvus 等项目依赖不在白名单内。
+VM 侧安装说明见 [deploy/runbook/README.md](deploy/runbook/README.md)。应用默认禁用该动作；启用时使用 SSH 公钥和 root-owned helper，不能传入容器名、镜像、端口或 shell 命令。演示容器使用独立 bridge 网络，测试结束后由 `cleanup` 删除；PostgreSQL、ES、Milvus 等项目依赖不在白名单内。
 
 ## 目录
 
