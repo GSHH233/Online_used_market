@@ -1,0 +1,120 @@
+[
+  {
+    "caseId": "DE-AGENT-001",
+    "role": "INTERNAL",
+    "question": "查询当前接口 P95 指标",
+    "sessionId": "deepeval-direct-metric",
+    "maxSteps": 4,
+    "expectedStrategy": "DIRECT",
+    "expectedToolSets": [
+      [{"name": "prometheus_query", "inputParameters": {"query": "histogram_quantile(0.95, sum(rate(http_server_requests_seconds_bucket[5m])) by (le))", "queryType": "instant", "limit": 20}}]
+    ],
+    "allowedTools": ["prometheus_query", "log_query"],
+    "compareArguments": true,
+    "ordered": true,
+    "requiredPhases": ["graph_plan", "tool_call", "final"],
+    "requireObservation": true
+  },
+  {
+    "caseId": "DE-AGENT-002",
+    "role": "INTERNAL",
+    "question": "查询 trace-demo-001 的错误日志",
+    "sessionId": "deepeval-direct-log",
+    "maxSteps": 4,
+    "expectedStrategy": "DIRECT",
+    "expectedToolSets": [["log_query"]],
+    "allowedTools": ["log_query"],
+    "ordered": true,
+    "requiredPhases": ["graph_plan", "tool_call", "final"],
+    "requireObservation": true
+  },
+  {
+    "caseId": "DE-AGENT-003",
+    "role": "INTERNAL",
+    "question": "查询最近的知识文档表状态",
+    "sessionId": "deepeval-direct-db",
+    "maxSteps": 4,
+    "expectedStrategy": "DIRECT",
+    "expectedToolSets": [
+      ["mysql_read"],
+      ["mysql_read", "knowledge_search"]
+    ],
+    "allowedTools": ["mysql_read", "knowledge_search"],
+    "ordered": true,
+    "requiredPhases": ["graph_plan", "tool_call", "final"],
+    "requireObservation": true
+  },
+  {
+    "caseId": "DE-AGENT-004",
+    "role": "INTERNAL",
+    "question": "先查询 P95 指标，再根据结果定位原因",
+    "sessionId": "deepeval-react-metric",
+    "maxSteps": 5,
+    "expectedStrategy": "REACT",
+    "expectedToolSets": [
+      ["prometheus_query"],
+      ["prometheus_query", "log_query"]
+    ],
+    "allowedTools": ["prometheus_query", "log_query"],
+    "ordered": true,
+    "requiredPhases": ["plan", "tool_call", "final"],
+    "requireObservation": true
+  },
+  {
+    "caseId": "DE-AGENT-005",
+    "role": "INTERNAL",
+    "question": "先查询数据库知识文档状态，再根据结果补充知识库规则",
+    "sessionId": "deepeval-react-db",
+    "maxSteps": 5,
+    "expectedStrategy": "DAG",
+    "expectedToolSets": [
+      ["mysql_read", "knowledge_search", "vector_debug"],
+      ["mysql_read", "knowledge_search"],
+      ["mysql_read"]
+    ],
+    "allowedTools": ["mysql_read", "knowledge_search", "vector_debug"],
+    "ordered": true,
+    "requiredPhases": ["graph_plan", "tool_call", "final"],
+    "requireGraph": true,
+    "requireObservation": true
+  },
+  {
+    "caseId": "DE-AGENT-006",
+    "role": "INTERNAL",
+    "question": "同时查询 P95 指标、错误日志和知识库超时规则并汇总结论",
+    "sessionId": "deepeval-dag-three-way",
+    "maxSteps": 6,
+    "expectedStrategy": "DAG",
+    "expectedToolSets": [
+      ["prometheus_query", "log_query", "knowledge_search", "vector_debug"],
+      ["prometheus_query", "log_query", "knowledge_search"]
+    ],
+    "allowedTools": ["prometheus_query", "log_query", "knowledge_search", "vector_debug"],
+    "ordered": false,
+    "requiredPhases": ["graph_plan", "tool_call", "final"],
+    "requireObservation": true,
+    "requireGraph": true
+  },
+  {
+    "caseId": "DE-AGENT-007",
+    "role": "INTERNAL",
+    "question": "同时检查接口 P95 指标和错误日志，综合判断延迟原因",
+    "sessionId": "deepeval-dag-observability",
+    "maxSteps": 6,
+    "expectedStrategy": "DAG",
+    "expectedToolSets": [["prometheus_query", "log_query"]],
+    "allowedTools": ["prometheus_query", "log_query"],
+    "ordered": false,
+    "requiredPhases": ["graph_plan", "tool_call", "final"],
+    "requireObservation": true,
+    "requireGraph": true
+  },
+  {
+    "caseId": "DE-AGENT-008",
+    "role": "USER",
+    "question": "同时查询系统指标和错误日志",
+    "sessionId": "deepeval-user-denied",
+    "maxSteps": 4,
+    "expectedHttpStatus": 403
+  }
+]

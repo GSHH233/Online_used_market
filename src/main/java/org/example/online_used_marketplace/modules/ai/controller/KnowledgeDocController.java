@@ -58,10 +58,11 @@ public class KnowledgeDocController {
             @RequestParam(required = false) String tags,
             @RequestParam(defaultValue = "MEDIUM") String sourceTrustLevel,
             @RequestParam(defaultValue = "v1") String docVersion,
+            @RequestParam(required = false) String logicalKnowledgeId,
             @RequestParam(defaultValue = "true") boolean async) {
         ToolAccessGuard.requireInternalEndpoint("knowledge_doc_upload");
         return Result.success(knowledgeDocumentUploadService.upload(
-                file, title, sourceType, tags, sourceTrustLevel, docVersion, async));
+                file, title, sourceType, tags, sourceTrustLevel, docVersion, logicalKnowledgeId, async));
     }
 
     @PostMapping("/docs")
@@ -112,6 +113,14 @@ public class KnowledgeDocController {
                                                     @RequestParam(defaultValue = "false") Boolean async) {
         ToolAccessGuard.requireInternalEndpoint("knowledge_doc_repair_legacy");
         throw legacyWriteOperation("REPAIR_KNOWLEDGE_DOC", docId);
+    }
+
+    @PostMapping("/rollback/{docId}")
+    public Result<KnowledgeReindexTriggerVO> rollback(@PathVariable Long docId) {
+        ToolAccessGuard.requireInternalEndpoint("knowledge_doc_rollback_legacy");
+        throw new BusinessException(ResultCode.CONFLICT,
+                "知识版本回滚已收口为受控操作计划，请调用 POST /api/ai/operations/plans，actionCode="
+                        + "ROLLBACK_KNOWLEDGE_REVISION，params.targetDocId=" + docId);
     }
 
     @PostMapping("/repair/batch")

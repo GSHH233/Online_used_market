@@ -5,7 +5,7 @@ set -Eeuo pipefail
 # This script recreates compose networks without deleting volumes.
 # Do NOT add "-v" to docker compose down unless you intentionally want data loss.
 
-BASE_HOME="${BASE_HOME:-$HOME}"
+BASE_HOME="${BASE_HOME:-/home/gshhh}"
 RESTART_DOCKER=0
 PRUNE_NETWORKS=0
 ONLY=""
@@ -22,7 +22,7 @@ Options:
   -h, --help         Show help.
 
 Environment:
-  BASE_HOME=/home/your-user   Override compose folder base path.
+  BASE_HOME=/home/gshhh   Override compose folder base path.
 
 Examples:
   bash restart_vm_containers.sh

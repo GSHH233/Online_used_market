@@ -11,5 +11,6 @@ public interface KnowledgeDocumentUploadService {
                                      String tags,
                                      String sourceTrustLevel,
                                      String docVersion,
+                                     String logicalKnowledgeId,
                                      boolean async);
 }

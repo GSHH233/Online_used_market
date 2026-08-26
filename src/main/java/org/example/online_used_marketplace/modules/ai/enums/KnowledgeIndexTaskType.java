@@ -6,5 +6,6 @@ package org.example.online_used_marketplace.modules.ai.enums;
 public enum KnowledgeIndexTaskType {
     INGEST,
     REINDEX,
-    REPAIR
+    REPAIR,
+    ROLLBACK
 }

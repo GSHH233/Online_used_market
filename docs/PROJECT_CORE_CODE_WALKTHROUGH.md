@@ -67,14 +67,13 @@ RabbitMQ 不可用时，代码不会悄悄改为同步执行，而是将任务�
 
 `rebuildIndexes` 的实际顺序是：
 
-1. 删除该文档原有的 Milvus、ES 和 DB chunk。
-2. 调用 `ChunkingService.split` 重新切片。
-3. 先写 DB，获得数据库生成的 `chunkId`。
-4. 对 chunk 内容批量生成 embedding。
-5. 使用同一个 `chunkId` 写入 Milvus。
-6. 使用同一个 `chunkId` 写入 ES。
-7. 回写 embedding model 和 vector reference。
-8. 查询三边 chunkId，执行一致性验证。
+1. 保留当前 ACTIVE 索引，调用 `ChunkingService.split` 生成 STAGING chunk。
+2. 先写 DB，获得数据库生成的 `chunkId`。
+3. 对 chunk 内容批量生成 embedding。
+4. 使用同一个 `chunkId` 写入 Milvus。
+5. 使用同一个 `chunkId` 写入 ES。
+6. 回写 embedding model 和 vector reference，并查询三边 chunkId 验证 STAGING。
+7. 验证通过才切换 ACTIVE；同文档旧 index generation 随后清理，跨 revision 的旧文档进入 RETIRED 保留期。
 
 DB 必须先写，因为它是 chunk 身份的事实源。ES 和 Milvus 如果自己生成 ID，就无法可靠地做去重、引用定位和 Repair。
 
@@ -139,7 +138,7 @@ RRF 的价值不是“比加权一定更准”，而是避免直接混合 Milvus
 两路结果进入 RRF 前都会执行 `applyGovernance`：
 
 - 文档不存在：丢弃。
-- 状态为 `DISABLED`：丢弃。
+- 状态不是 `ACTIVE`（包括 `DRAFT`、`RETIRED`、`DISABLED`）：丢弃。
 - 尚未生效或已经过期：丢弃。
 - 补充来源可信等级、文档版本和有效期。
 

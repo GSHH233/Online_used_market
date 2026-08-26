@@ -99,6 +99,10 @@ public class ElasticsearchIndexInitializer {
         doc.setEffectiveTo(metadata == null ? "" : safe(metadata.getEffectiveTo()));
         doc.setDocStatus(metadata == null ? "" : safe(metadata.getDocStatus()));
         doc.setDisabledReason(metadata == null ? "" : safe(metadata.getDisabledReason()));
+        doc.setIndexVersion(StringUtils.hasText(chunk.getIndexVersion())
+                ? chunk.getIndexVersion()
+                : metadata == null ? "" : safe(metadata.getIndexVersion()));
+        doc.setLogicalKnowledgeId(metadata == null ? "" : safe(metadata.getLogicalKnowledgeId()));
         return doc;
     }
 

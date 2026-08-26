@@ -21,6 +21,9 @@ public interface KnowledgeDocService {
     KnowledgeDocVO getVO(Long docId);
     KnowledgeDoc getByIdOrThrow(Long docId);
     KnowledgeDocVO updateGovernance(Long docId, KnowledgeDocGovernanceUpdateDTO dto);
+    List<Long> activateIndexedVersion(Long docId, String indexVersion);
+    KnowledgeDoc reserveRetiredRevisionForRollback(Long docId);
+    void releaseRollbackReservation(Long docId, String reason);
     List<KnowledgeDocVO> list(String keyword, KnowledgeDocStatus status,
                               KnowledgeSourceType sourceType, Integer limit);
 }

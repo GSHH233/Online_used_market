@@ -171,6 +171,10 @@
 - [x] Hybrid 使用 RRF 融合两路结果。
 - [x] 检索结果按 `docId + chunkId` 去重。
 - [x] metadata filter 和低置信度判定已接入。
+- [x] RRF 后新增确定性二阶段 Rerank，融合原始排名、标题/正文覆盖和来源可信度。
+- [x] 新增 MMR 去冗余和 Dynamic TopK；响应保留 `retrievalScore`、`rerankScore` 与评分原因。
+- [x] 新文档执行 DRAFT→三存储验证→ACTIVE；同一逻辑知识新 revision 发布后自动退役旧版本。
+- [~] 存量文档按 legacy 模式兼容，需受控 reindex 后关闭兼容开关。
 
 相关类：
 
@@ -187,6 +191,11 @@
 - [x] `eval/datasets/retrieval_eval_hard_dataset.json`
 - 历史 hard case：61 条。
 - 历史结果：hybrid Recall@5 = 100.00%，MRR = 0.930。
+- 2026-08-08：接入 RAGAS 多相关 Gold；初始 ID Context Recall = 100%，Precision = 30.83%，据此启动 Rerank 与生命周期治理。
+- 新验收目标：ID Context Recall >= 90%，ID Context Precision >= 55%。
+- 2026-08-11：冻结 Holdout v2 后，仅按聚合失败类型构造 30 条 Development v3；加入交易安全语义归一化和显式 Evidence Plan。Development v3 从 Precision 47.00% / Recall 72.22% 提升至 71.22% / 97.22%，Retrieval P95 从 5.92s 降至 599ms。
+- 2026-08-11：50 条 Regression 复验通过，Precision 59.43%、Recall 97.00%、Retrieval P95 274ms；修复“流量卡不实名”被误判为账号所有权的规则泛化问题。Holdout v2 未重跑。
+- 框架决策：当前 Boot 3.5.6 + Spring AI 1.0.3 保持不动；Spring AI 2.0 仅在独立迁移分支评估，不在检索算法实验中同时换框架，也暂不混用 LangChain4j。
 
 历史问题与修复：
 

@@ -30,4 +30,28 @@ public class AiopsMttrMetricsVO {
     private Double autoRepairSuccessRate;
 
     private Double escalationRate;
+
+    private Long mttdSampleCount;
+
+    private Double averageMttdMs;
+
+    private Double p50MttdMs;
+
+    private Double p95MttdMs;
+
+    private Long automationRepairCount;
+
+    private Double averageAutomationRepairMs;
+
+    private Double p50AutomationRepairMs;
+
+    private Double p95AutomationRepairMs;
+
+    private Long fullMttrCount;
+
+    private Double averageFullMttrMs;
+
+    private Double p50FullMttrMs;
+
+    private Double p95FullMttrMs;
 }

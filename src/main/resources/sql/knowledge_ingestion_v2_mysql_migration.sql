@@ -62,6 +62,12 @@ CALL add_column_if_missing('ai_knowledge_doc', 'structure_json', 'longtext DEFAU
 CALL add_column_if_missing('ai_knowledge_doc', 'chunk_strategy_version', 'varchar(64) DEFAULT NULL');
 CALL add_column_if_missing('ai_knowledge_doc', 'embedding_model', 'varchar(128) DEFAULT NULL');
 CALL add_column_if_missing('ai_knowledge_doc', 'active_index_version', 'varchar(96) DEFAULT NULL');
+CALL add_column_if_missing('ai_knowledge_doc', 'logical_knowledge_id', 'varchar(128) DEFAULT NULL');
+CALL add_column_if_missing('ai_knowledge_doc', 'content_hash', 'char(64) DEFAULT NULL');
+CALL add_column_if_missing('ai_knowledge_doc', 'revision', 'int NOT NULL DEFAULT 1');
+CALL add_column_if_missing('ai_knowledge_doc', 'supersedes_doc_id', 'bigint DEFAULT NULL');
+CALL add_column_if_missing('ai_knowledge_doc', 'lifecycle_managed', 'tinyint(1) NOT NULL DEFAULT 0');
+CALL add_column_if_missing('ai_knowledge_doc', 'published_at', 'datetime(6) DEFAULT NULL');
 
 CALL add_column_if_missing('ai_knowledge_chunk', 'index_version', 'varchar(96) DEFAULT NULL');
 CALL add_column_if_missing('ai_knowledge_chunk', 'index_status', 'varchar(24) DEFAULT NULL');
@@ -75,6 +81,16 @@ CALL add_index_if_missing(
     'ai_knowledge_doc',
     'idx_ai_doc_ingestion_version',
     '`file_hash`, `parser_version`, `chunk_strategy_version`, `embedding_model`'
+);
+CALL add_index_if_missing(
+    'ai_knowledge_doc',
+    'idx_ai_doc_logical_revision',
+    '`logical_knowledge_id`, `status`, `revision`'
+);
+CALL add_index_if_missing(
+    'ai_knowledge_doc',
+    'idx_ai_doc_content_hash',
+    '`content_hash`, `source_type`'
 );
 
 DROP PROCEDURE IF EXISTS add_column_if_missing;

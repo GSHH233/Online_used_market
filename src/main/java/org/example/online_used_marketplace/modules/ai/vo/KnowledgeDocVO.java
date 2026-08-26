@@ -51,4 +51,26 @@ public class KnowledgeDocVO {
     private String embeddingModel;
 
     private String activeIndexVersion;
+
+    private String logicalKnowledgeId;
+
+    private String contentHash;
+
+    private Integer revision;
+
+    private Long supersedesDocId;
+
+    private Boolean lifecycleManaged;
+
+    private LocalDateTime publishedAt;
+
+    private LocalDateTime retiredAt;
+
+    private LocalDateTime retentionUntil;
+
+    private String cleanupStatus;
+
+    private String cleanupError;
+
+    private LocalDateTime cleanedAt;
 }

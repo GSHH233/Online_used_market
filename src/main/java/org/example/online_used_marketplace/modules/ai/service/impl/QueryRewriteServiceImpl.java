@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.nio.charset.StandardCharsets;
@@ -64,10 +65,20 @@ public class QueryRewriteServiceImpl implements QueryRewriteService {
             return false;
         }
         String value = query.toLowerCase(Locale.ROOT);
-        return query.length() >= 45
-                || containsAny(value, "这个", "那个", "上述", "前面", "它", "他们")
-                || containsAny(value, "同时", "并且", "以及", "分别", "然后", "还要", "另外")
-                || (containsAny(value, "为什么", "原因", "怎么") && query.length() > 24);
+        int connectorCount = countMatches(value,
+                "同时", "并且", "以及", "分别", "然后", "另外", "一方面", "另一方面");
+        int conceptCount = KnowledgeQueryConcepts.detect(value).size();
+        KnowledgeEvidencePlanner.Plan evidencePlan = KnowledgeEvidencePlanner.plan(value);
+        int evidenceCount = evidencePlan.requirements().size();
+        boolean unresolvedReference = containsAny(value, "这个", "那个", "上述", "前面", "它", "他们")
+                && conceptCount == 0;
+        return query.length() >= 60
+                || unresolvedReference
+                || evidenceCount >= 4
+                || (connectorCount >= 1 && evidencePlan.multiHop())
+                || (connectorCount >= 2 && conceptCount >= 2)
+                || (containsAny(value, "为什么", "原因", "怎么")
+                    && query.length() > 32 && conceptCount >= 2);
     }
 
     @Override
@@ -108,10 +119,14 @@ public class QueryRewriteServiceImpl implements QueryRewriteService {
             return plan;
         } catch (Exception ex) {
             future.cancel(true);
-            log.warn("[QueryRewrite] fallback to original, reason={}", ex.getMessage());
+            String reason = ex instanceof TimeoutException
+                    ? "exceeded " + properties.getQueryRewrite().getTimeoutMs() + "ms"
+                    : safe(ex.getMessage());
+            log.warn("[QueryRewrite] fallback to original, reason={}: {}",
+                    ex.getClass().getSimpleName(), reason);
             QueryRewritePlanVO fallback = originalOnly(query, triggerReason);
             fallback.setFallback(true);
-            fallback.setFallbackReason(ex.getClass().getSimpleName() + ": " + safe(ex.getMessage()));
+            fallback.setFallbackReason(ex.getClass().getSimpleName() + ": " + reason);
             fallback.setElapsedMs(System.currentTimeMillis() - started);
             recordMetrics(triggerReason, "fallback", fallback);
             meterRegistry.counter("rag_query_rewrite_fallback_total",
@@ -303,6 +318,16 @@ public class QueryRewriteServiceImpl implements QueryRewriteService {
             }
         }
         return false;
+    }
+
+    private int countMatches(String value, String... terms) {
+        int count = 0;
+        for (String term : terms) {
+            if (value.contains(term)) {
+                count++;
+            }
+        }
+        return count;
     }
 
     private QueryRewritePlanVO copy(QueryRewritePlanVO source) {

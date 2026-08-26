@@ -40,6 +40,10 @@ public class RagSourceMergeHelper {
             vo.setEffectiveTo(hit.getEffectiveTo());
             vo.setDocStatus(hit.getDocStatus());
             vo.setDisabledReason(hit.getDisabledReason());
+            vo.setLogicalKnowledgeId(hit.getLogicalKnowledgeId());
+            vo.setRetrievalScore(hit.getRetrievalScore());
+            vo.setRerankScore(hit.getRerankScore());
+            vo.setRerankReason(hit.getRerankReason());
             sources.add(vo);
         }
         return sources;

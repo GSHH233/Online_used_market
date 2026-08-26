@@ -1,6 +1,5 @@
 package org.example.online_used_marketplace.modules.ai.config;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -8,7 +7,6 @@ import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.QueueBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
-import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
 import org.springframework.amqp.support.converter.MessageConverter;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -101,14 +99,9 @@ public class KnowledgeIngestionRabbitConfig {
     }
 
     @Bean
-    public MessageConverter rabbitJsonMessageConverter(ObjectMapper objectMapper) {
-        return new Jackson2JsonMessageConverter(objectMapper);
-    }
-
-    @Bean
     public SimpleRabbitListenerContainerFactory knowledgeIngestionRabbitListenerContainerFactory(
             ConnectionFactory connectionFactory,
-            MessageConverter rabbitJsonMessageConverter,
+            @Qualifier("rabbitJsonMessageConverter") MessageConverter rabbitJsonMessageConverter,
             KnowledgeIngestionRabbitProperties properties) {
         SimpleRabbitListenerContainerFactory factory = new SimpleRabbitListenerContainerFactory();
         factory.setConnectionFactory(connectionFactory);

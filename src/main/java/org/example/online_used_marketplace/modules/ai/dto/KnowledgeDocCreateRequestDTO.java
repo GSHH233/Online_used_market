@@ -39,6 +39,9 @@ public class KnowledgeDocCreateRequestDTO {
 
     private String docVersion = "v1";
 
+    @Size(max = 128, message = "逻辑知识ID不能超过128个字符")
+    private String logicalKnowledgeId;
+
     private String fileName;
 
     private String mimeType;

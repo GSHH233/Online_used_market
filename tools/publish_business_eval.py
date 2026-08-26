@@ -29,6 +29,7 @@ class CaseResult:
     fact_total: int
     can_publish: bool | None
     rule_codes: list[str]
+    retrieval_modes: list[str]
     details: list[str]
 
 
@@ -62,6 +63,66 @@ def normalized_text(data: dict[str, Any]) -> str:
         " ".join(str(value) for value in warnings),
     ]
     return " ".join(str(value or "") for value in values).lower().replace(" ", "")
+
+
+def validate_retrieval(case: dict[str, Any], data: dict[str, Any],
+                       failures: list[str]) -> list[str]:
+    retrievals = data.get("retrievals") if isinstance(data.get("retrievals"), list) else []
+    modes = [str(item.get("retrievalMode") or "") for item in retrievals if isinstance(item, dict)]
+    expected = case.get("expectedRetrieval")
+    if not isinstance(expected, dict):
+        return modes
+
+    if len(retrievals) < int(expected.get("minAttempts") or 1):
+        failures.append(f"retrievalAttempts:{len(retrievals)}<{expected.get('minAttempts')}")
+        return modes
+
+    stages = {str(item.get("stage") or "") for item in retrievals if isinstance(item, dict)}
+    for required_stage in expected.get("requiredStages") or []:
+        if str(required_stage) not in stages:
+            failures.append(f"missingRetrievalStage:{required_stage}")
+    source_types = {str(item.get("sourceType") or "") for item in retrievals if isinstance(item, dict)}
+    for required_source_type in expected.get("requiredSourceTypes") or []:
+        if str(required_source_type) not in source_types:
+            failures.append(f"missingRetrievalSourceType:{required_source_type}")
+
+    candidates = [item for item in retrievals if isinstance(item, dict)]
+    source_type = str(expected.get("sourceType") or "")
+    if source_type:
+        candidates = [item for item in candidates if str(item.get("sourceType") or "") == source_type]
+    allowed_modes = {str(value) for value in expected.get("allowedModes") or []}
+    if allowed_modes:
+        candidates = [item for item in candidates if str(item.get("retrievalMode") or "") in allowed_modes]
+    if not candidates:
+        failures.append(f"missingRetrieval:sourceType={source_type},allowedModes={sorted(allowed_modes)}")
+        return modes
+
+    candidate = candidates[0]
+    if expected.get("requireQuery") and not str(candidate.get("query") or "").strip():
+        failures.append("missingRetrievalQuery")
+    if expected.get("requireCounters"):
+        for field in ("hitCount", "vectorHitCount", "keywordHitCount"):
+            if not isinstance(candidate.get(field), int):
+                failures.append(f"missingRetrievalCounter:{field}")
+    if expected.get("requireDebug") and not str(candidate.get("debugInfo") or "").strip():
+        failures.append("missingRetrievalDebug")
+    if expected.get("requireCountersForAllStages"):
+        required_stages = {str(value) for value in expected.get("requiredStages") or []}
+        for item in retrievals:
+            if not isinstance(item, dict) or str(item.get("stage") or "") not in required_stages:
+                continue
+            for field in ("hitCount", "vectorHitCount", "keywordHitCount"):
+                if not isinstance(item.get(field), int):
+                    failures.append(f"missingRetrievalCounter:{item.get('stage')}:{field}")
+    if expected.get("requireDebugForAllStages"):
+        required_stages = {str(value) for value in expected.get("requiredStages") or []}
+        for item in retrievals:
+            if (isinstance(item, dict) and str(item.get("stage") or "") in required_stages
+                    and not str(item.get("debugInfo") or "").strip()):
+                failures.append(f"missingRetrievalDebug:{item.get('stage')}")
+    if expected.get("requireFallbackSource") is True and candidate.get("fallbackSourceUsed") is not True:
+        failures.append("expectedFallbackSource")
+    return modes
 
 
 def evaluate(case: dict[str, Any], base_url: str, token: str,
@@ -111,12 +172,13 @@ def evaluate(case: dict[str, Any], base_url: str, token: str,
             failures.append("missingTraceability")
         if not evidence and (case.get("expectedRuleCodes") or []):
             failures.append("missingRiskEvidence")
+        retrieval_modes = validate_retrieval(case, data, failures)
         return CaseResult(case_id, not failures, latency_ms, fact_correct, fact_total,
                           actual_can_publish if isinstance(actual_can_publish, bool) else None,
-                          rule_codes, failures)
+                          rule_codes, retrieval_modes, failures)
     except Exception as exc:
         return CaseResult(case_id, False, latency_ms, 0,
-                          len(case.get("expectedFacts") or []), None, [], [f"error:{exc}"])
+                          len(case.get("expectedFacts") or []), None, [], [], [f"error:{exc}"])
 
 
 def percentile(values: list[float], p: float) -> float:
@@ -147,7 +209,7 @@ def main() -> int:
     for result in results:
         print(f"[{'OK' if result.ok else 'RISK'}] {result.case_id} "
               f"facts={result.fact_correct}/{result.fact_total} canPublish={result.can_publish} "
-              f"latency={result.latency_ms:.1f} details={result.details}")
+              f"retrieval={','.join(result.retrieval_modes)} latency={result.latency_ms:.1f} details={result.details}")
 
     passed = sum(result.ok for result in results)
     fact_correct = sum(result.fact_correct for result in results)
@@ -192,13 +254,14 @@ def main() -> int:
         "",
         "> This report evaluates target business behavior; failures must not be hidden by weakening assertions.",
         "",
-        "| Case | Status | Facts | canPublish | Rule codes | Latency(ms) | Details |",
-        "| --- | --- | ---: | --- | --- | ---: | --- |",
+        "| Case | Status | Facts | canPublish | Retrieval | Rule codes | Latency(ms) | Details |",
+        "| --- | --- | ---: | --- | --- | --- | ---: | --- |",
     ]
     lines.extend(
         f"| {result.case_id} | {'PASS' if result.ok else 'FAIL'} | "
         f"{result.fact_correct}/{result.fact_total} | {result.can_publish} | "
-        f"{','.join(result.rule_codes)} | {result.latency_ms:.1f} | {'; '.join(result.details)} |"
+        f"{','.join(result.retrieval_modes)} | {','.join(result.rule_codes)} | "
+        f"{result.latency_ms:.1f} | {'; '.join(result.details)} |"
         for result in results
     )
     output.parent.mkdir(parents=True, exist_ok=True)

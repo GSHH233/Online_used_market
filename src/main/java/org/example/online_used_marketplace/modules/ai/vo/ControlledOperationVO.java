@@ -16,6 +16,11 @@ public class ControlledOperationVO {
     private String status;
     private String reason;
     private String idempotencyKey;
+
+    private Long sourceEventId;
+
+    private String diagnosisHash;
+
     private Map<String, Object> params = new LinkedHashMap<>();
     private Long approvedBy;
     private LocalDateTime approvedAt;

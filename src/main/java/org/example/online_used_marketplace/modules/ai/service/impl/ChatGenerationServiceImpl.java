@@ -21,6 +21,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.io.InterruptedIOException;
 import java.time.LocalDateTime;
 
 /**
@@ -50,6 +51,9 @@ public class ChatGenerationServiceImpl implements ChatGenerationService {
     @Value("${spring.ai.openai.chat.options.model:unknown}")
     private String configuredModel;
 
+    @Value("${ai.generation.rag-chat-model:}")
+    private String ragChatModel;
+
     @Override
     public String generate(String prompt) {
         return generate(TokenGenerationRequest.builder()
@@ -71,10 +75,14 @@ public class ChatGenerationServiceImpl implements ChatGenerationService {
         String systemPrompt = StringUtils.hasText(normalized.getSystemPrompt())
                 ? normalized.getSystemPrompt().trim()
                 : SYSTEM_PROMPT;
+        String selectedModel = scene == TokenScene.RAG_CHAT && StringUtils.hasText(ragChatModel)
+                ? ragChatModel.trim()
+                : configuredModel;
+        int maxAttempts = scene == TokenScene.QUERY_REWRITE ? 1 : MAX_ATTEMPTS;
         long startedAt = System.currentTimeMillis();
         Exception lastError = null;
         int attempts = 0;
-        for (int attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             attempts = attempt;
             try {
                 ChatResponse response = chatClient
@@ -82,7 +90,10 @@ public class ChatGenerationServiceImpl implements ChatGenerationService {
                         .prompt()
                         .system(systemPrompt)
                         .user(prompt)
-                        .options(ChatOptions.builder().maxTokens(budget.getOutputBudget()).build())
+                        .options(ChatOptions.builder()
+                                .model(selectedModel)
+                                .maxTokens(budget.getOutputBudget())
+                                .build())
                         .call()
                         .chatResponse();
                 String content = response == null || response.getResult() == null
@@ -101,7 +112,7 @@ public class ChatGenerationServiceImpl implements ChatGenerationService {
                 String model = response != null && response.getMetadata() != null
                         && StringUtils.hasText(response.getMetadata().getModel())
                         ? response.getMetadata().getModel()
-                        : configuredModel;
+                        : selectedModel;
                 TokenGenerationResult result = TokenGenerationResult.builder()
                         .content(content)
                         .traceId(normalized.getTraceId())
@@ -124,19 +135,23 @@ public class ChatGenerationServiceImpl implements ChatGenerationService {
                 throw e;
             } catch (Exception e) {
                 lastError = e;
-                if (attempt >= MAX_ATTEMPTS) {
+                if (attempt >= maxAttempts || isCancellation(e)) {
                     break;
                 }
-                log.warn("AI generation attempt {}/{} failed, retrying, message={}", attempt, MAX_ATTEMPTS, e.getMessage());
+                log.warn("AI generation attempt {}/{} failed, retrying, message={}", attempt, maxAttempts, e.getMessage());
                 sleepQuietly(BASE_BACKOFF_MS * attempt);
             }
         }
-        log.error("AI generation failed after {} attempts, message={}", MAX_ATTEMPTS,
-                lastError == null ? "" : lastError.getMessage(), lastError);
+        if (isCancellation(lastError)) {
+            log.warn("AI generation cancelled, scene={}, attempts={}", scene, attempts);
+        } else {
+            log.error("AI generation failed after {} attempts, message={}", attempts,
+                    lastError == null ? "" : lastError.getMessage(), lastError);
+        }
         TokenGenerationResult failed = TokenGenerationResult.builder()
                 .traceId(normalized.getTraceId())
                 .scene(scene)
-                .model(configuredModel)
+                .model(selectedModel)
                 .promptTokens(tokenCounterService.count(systemPrompt) + tokenCounterService.count(prompt))
                 .completionTokens(0)
                 .totalTokens(tokenCounterService.count(systemPrompt) + tokenCounterService.count(prompt))
@@ -179,5 +194,19 @@ public class ChatGenerationServiceImpl implements ChatGenerationService {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
+    }
+
+    private boolean isCancellation(Throwable error) {
+        if (Thread.currentThread().isInterrupted()) {
+            return true;
+        }
+        Throwable cursor = error;
+        while (cursor != null) {
+            if (cursor instanceof InterruptedException || cursor instanceof InterruptedIOException) {
+                return true;
+            }
+            cursor = cursor.getCause();
+        }
+        return false;
     }
 }

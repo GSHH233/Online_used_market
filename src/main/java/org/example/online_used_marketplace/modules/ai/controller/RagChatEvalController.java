@@ -28,7 +28,8 @@ public class RagChatEvalController {
     public Result<WsChatDoneVO> eval(@Valid @RequestBody WsChatStartRequestDTO dto) {
         String traceId = UUID.randomUUID().toString();
         String sessionId = StringUtils.hasText(dto.getRequestId()) ? "eval-" + dto.getRequestId() : "eval-" + traceId;
-        WsChatDoneVO done = ragChatService.chat(sessionId, dto.getQuestion(), traceId, dto.getTopK(), dto.getFilter());
+        WsChatDoneVO done = ragChatService.chatForEvaluation(
+                sessionId, dto.getQuestion(), traceId, dto.getTopK(), dto.getFilter());
         if (done != null) {
             done.setRequestId(dto.getRequestId());
             done.setTraceId(traceId);

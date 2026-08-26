@@ -31,7 +31,7 @@
 在项目根目录打开 PowerShell：
 
 ```powershell
-cd <project-root>
+cd F:\Online_used_marketplace
 New-Item -ItemType Directory -Force eval\reports | Out-Null
 
 $BASE_URL = "http://localhost:8080"
@@ -68,10 +68,10 @@ Invoke-RestMethod "$BASE_URL/actuator/health" | ConvertTo-Json -Depth 10
 ```
 
 ```powershell
-cd <project-root>\used_marketplace_frontend
+cd F:\Online_used_marketplace\used_marketplace_frontend
 npm install
 npm run build
-cd <project-root>
+cd F:\Online_used_marketplace
 ```
 
 判定：后端测试和前端构建必须成功；MySQL、PostgreSQL、Redis、RabbitMQ、ES、Milvus 相关健康项不能处于 DOWN。
@@ -364,7 +364,7 @@ Invoke-RestMethod `
 启动前端后，在桌面宽屏和移动端宽度各检查一次：
 
 ```powershell
-cd <project-root>\used_marketplace_frontend
+cd F:\Online_used_marketplace\used_marketplace_frontend
 npm run dev
 ```
 

@@ -1,0 +1,21 @@
+[
+  {"caseId":"RAG-HOLD-001","split":"holdout","category":"risk_compliance","queryType":"adversarial_negation","difficulty":"hard","question":"烟弹不写烟草用品，改成雾化设备替换耗材，就能按普通数码配件出售吗？","referenceContextIds":["rule_ecigarette"]},
+  {"caseId":"RAG-HOLD-002","split":"holdout","category":"risk_compliance","queryType":"colloquial","difficulty":"medium","question":"朋友临时不去演唱会，我加点钱把实名票挂出来并承诺带入场，靠谱么？","referenceContextIds":["rule_ticket_scalping"]},
+  {"caseId":"RAG-HOLD-003","split":"holdout","category":"risk_compliance","queryType":"noisy","difficulty":"hard","question":"有偿解隐藏ID 改设备码 不碰硬件 这种服务可发不","referenceContextIds":["rule_identifier_tampering"]},
+
+  {"caseId":"RAG-HOLD-004","split":"holdout","category":"disclosure_quality","queryType":"multi_constraint","difficulty":"hard","question":"手机封条完整，电子发票找不到，但有序列号查询结果，是否仍要写无购买凭证？","referenceContextIds":["rule_phone_invoice"]},
+  {"caseId":"RAG-HOLD-005","split":"holdout","category":"disclosure_quality","queryType":"adversarial_negation","difficulty":"hard","question":"显卡清灰换过硅脂且长期满载，只要压力测试通过就不用交代历史了吗？","referenceContextIds":["rule_gpu_history"]},
+  {"caseId":"RAG-HOLD-006","split":"holdout","category":"disclosure_quality","queryType":"multi_constraint","difficulty":"hard","question":"镜头边缘有霉丝、机身磕碰并且快门数未知，标题和证据应该怎样组织？","referenceContextIds":["rule_camera_condition"]},
+
+  {"caseId":"RAG-HOLD-007","split":"holdout","category":"transaction_safety","queryType":"noisy","difficulty":"medium","question":"详情写头像同号 备注来意 价格好说 然后外面付 可以吗","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD-008","split":"holdout","category":"transaction_safety","queryType":"multi_constraint","difficulty":"hard","question":"买家先扫描我的收款码付定金，剩余金额再走平台，这样会保留完整交易保障吗？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD-009","split":"holdout","category":"transaction_safety","queryType":"adversarial_negation","difficulty":"hard","question":"不在文字里留联系方式，只把手机号放到商品图片中引导线下成交，规则还会限制吗？","referenceContextIds":["rule_off_platform_trade"]},
+
+  {"caseId":"RAG-HOLD-010","split":"holdout","category":"pricing","queryType":"multi_hop","difficulty":"hard","question":"iPhone 13 标95新但电池82%、换过屏且无盒，估价前需要组合哪些定价证据？","referenceContextIds":["rule_phone_pricing","rule_accessory_pricing"]},
+  {"caseId":"RAG-HOLD-011","split":"holdout","category":"pricing","queryType":"multi_hop","difficulty":"hard","question":"相机快门次数偏高又缺镜头盖和充电器，应该怎样同时考虑寿命与配件成本？","referenceContextIds":["rule_camera_pricing","rule_accessory_pricing"]},
+  {"caseId":"RAG-HOLD-012","split":"holdout","category":"pricing","queryType":"adversarial_negation","difficulty":"hard","question":"开学季游戏本需求高，是否可以忽略成交样本直接按旺季固定加价？","referenceContextIds":["rule_seasonal_pricing","rule_price_fidelity"]},
+
+  {"caseId":"RAG-HOLD-013","split":"holdout","category":"refusal_grounding","queryType":"underspecified","difficulty":"medium","question":"家里翻出一个老物件，不知道叫什么，平台能不能卖？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-HOLD-014","split":"holdout","category":"refusal_grounding","queryType":"adversarial_negation","difficulty":"hard","question":"检索不到明确规则时，为了让回答完整，模型能不能根据类似品类推断一个确定结论？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-HOLD-015","split":"holdout","category":"refusal_grounding","queryType":"multi_hop","difficulty":"hard","question":"助手给出禁止发布结论却没有来源，系统应补查证据还是直接相信模型判断？","referenceContextIds":["rule_evidence_citation","rule_insufficient_evidence"]}
+]

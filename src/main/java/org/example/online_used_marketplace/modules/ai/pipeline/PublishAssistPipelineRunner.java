@@ -21,6 +21,7 @@ public class PublishAssistPipelineRunner {
     private final List<PublishAssistStep> steps;
 
     public void run(PublishInputContext context, PublishAssistResult result, List<AssistStepTraceVO> trace, Integer round) {
+        result.setPipelineRound(round);
         for (PublishAssistStep step : steps) {
             String traceKey = step.stepKey() + "#" + round;
             markRunning(trace, traceKey);

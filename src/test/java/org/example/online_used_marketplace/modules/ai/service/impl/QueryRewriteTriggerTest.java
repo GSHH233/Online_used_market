@@ -10,6 +10,7 @@ import org.example.online_used_marketplace.modules.ai.vo.QueryRewritePlanVO;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -27,8 +28,13 @@ class QueryRewriteTriggerTest {
                 null, new ObjectMapper(), properties, new SimpleMeterRegistry());
         try {
             assertFalse(service.shouldRewriteBeforeRetrieval("处方药能发布吗"));
+            assertFalse(service.shouldRewriteBeforeRetrieval(
+                    "只知道它是数码产品，能直接判断允许出售吗"));
+            assertTrue(service.shouldRewriteBeforeRetrieval("这个应该怎么处理"));
             assertTrue(service.shouldRewriteBeforeRetrieval(
                     "无人机炸过机但是已经维修，同时电池循环次数没有写，这两项分别有什么发布风险"));
+            assertTrue(service.shouldRewriteBeforeRetrieval(
+                    "相机传感器异常并且少充电器，风险说明和定价需要哪些依据"));
         } finally {
             service.close();
         }
@@ -100,6 +106,37 @@ class QueryRewriteTriggerTest {
             assertFalse(plan.isRewriteUsed());
             assertTrue(plan.isFallback());
             assertTrue(plan.getFallbackReason().contains("introduced protected literal"));
+        } finally {
+            service.close();
+        }
+    }
+
+    @Test
+    void reportsTimeoutAndCancelsInFlightRewrite() throws Exception {
+        ChatGenerationService generationService = mock(ChatGenerationService.class);
+        AtomicBoolean interrupted = new AtomicBoolean(false);
+        when(generationService.generate(any(TokenGenerationRequest.class))).thenAnswer(invocation -> {
+            try {
+                Thread.sleep(5_000L);
+            } catch (InterruptedException ex) {
+                interrupted.set(true);
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("rewrite cancelled", ex);
+            }
+            return TokenGenerationResult.builder().content("{}").build();
+        });
+        KnowledgeIngestionProperties properties = new KnowledgeIngestionProperties();
+        properties.getQueryRewrite().setTimeoutMs(20);
+        QueryRewriteServiceImpl service = new QueryRewriteServiceImpl(
+                generationService, new ObjectMapper(), properties, new SimpleMeterRegistry());
+        try {
+            QueryRewritePlanVO plan = service.rewrite("复杂问题需要改写", "test");
+            assertTrue(plan.isFallback());
+            assertTrue(plan.getFallbackReason().contains("TimeoutException: exceeded 20ms"));
+            for (int i = 0; i < 20 && !interrupted.get(); i++) {
+                Thread.sleep(5L);
+            }
+            assertTrue(interrupted.get());
         } finally {
             service.close();
         }

@@ -1,0 +1,28 @@
+[
+  {"caseId":"RAG-DEV2-001","split":"development_v2","category":"transaction_safety","queryType":"multi_constraint","difficulty":"medium","question":"买家让我扫收款码先付订金，剩余金额再回平台下单，这样能保留交易保障吗？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-DEV2-002","split":"development_v2","category":"transaction_safety","queryType":"paraphrase","difficulty":"medium","question":"详情页公布电话号码约地铁站验货，见面后直接付款是否合规？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-DEV2-003","split":"development_v2","category":"transaction_safety","queryType":"multi_hop","difficulty":"hard","question":"订单可以走平台，但卖家要求先加微信接收验机视频，沟通记录还受平台保护吗？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-DEV2-004","split":"development_v2","category":"transaction_safety","queryType":"multi_constraint","difficulty":"hard","question":"游戏账号已经换绑手机，不过原号主仍可实名申诉，文案能承诺永久归买家吗？","referenceContextIds":["rule_account_trade"]},
+  {"caseId":"RAG-DEV2-005","split":"development_v2","category":"transaction_safety","queryType":"adversarial_negation","difficulty":"hard","question":"账号交易平台不支持，但买家书面同意承担找回和封号损失后还能发布吗？","referenceContextIds":["rule_account_trade"]},
+  {"caseId":"RAG-DEV2-006","split":"development_v2","category":"transaction_safety","queryType":"noisy","difficulty":"medium","question":"平台拍主机 运费差价私下补 收到再发 这样有保障没","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-DEV2-007","split":"development_v2","category":"transaction_safety","queryType":"colloquial","difficulty":"medium","question":"同城先看货，看完用支付宝给钱，不走平台担保行不行？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-DEV2-008","split":"development_v2","category":"transaction_safety","queryType":"multi_hop","difficulty":"hard","question":"卖账号时只披露可以换绑，却不说实名找回和游戏方禁止转让，会留下哪些风险？","referenceContextIds":["rule_account_trade"]},
+
+  {"caseId":"RAG-DEV2-009","split":"development_v2","category":"pricing","queryType":"multi_constraint","difficulty":"hard","question":"iPhone 电池82%，没有维修记录和近期成交样本，可以直接报一个确定价格吗？","referenceContextIds":["rule_phone_pricing","rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-010","split":"development_v2","category":"pricing","queryType":"multi_hop","difficulty":"hard","question":"RTX3060只有烤机截图，来源与高负载历史不清楚，应该先补什么再估价？","referenceContextIds":["rule_gpu_pricing","rule_gpu_history"]},
+  {"caseId":"RAG-DEV2-011","split":"development_v2","category":"pricing","queryType":"multi_constraint","difficulty":"medium","question":"相机快门五万次且只剩机身，缺电池和充电器时，报价要同时考虑哪些因素？","referenceContextIds":["rule_camera_pricing","rule_accessory_pricing"]},
+  {"caseId":"RAG-DEV2-012","split":"development_v2","category":"pricing","queryType":"adversarial_negation","difficulty":"hard","question":"笔记本写九成新，但电池、硬盘和维修情况都未知，按原价七折是否可靠？","referenceContextIds":["rule_laptop_condition","rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-013","split":"development_v2","category":"pricing","queryType":"paraphrase","difficulty":"medium","question":"不同品类从95新到99新的价差，都固定按百分之八计算可以吗？","referenceContextIds":["rule_condition_price_gap","rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-014","split":"development_v2","category":"pricing","queryType":"multi_constraint","difficulty":"hard","question":"开学季游戏本挂牌价普遍上涨，能据此统一加价15%吗？","referenceContextIds":["rule_seasonal_pricing","rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-015","split":"development_v2","category":"pricing","queryType":"multi_hop","difficulty":"hard","question":"无人机有机身和遥控器但没有电池，也没有近期成交数据，应该怎样形成报价依据？","referenceContextIds":["rule_drone_battery_pricing","rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-016","split":"development_v2","category":"pricing","queryType":"adversarial_negation","difficulty":"medium","question":"缺充电器、包装和保修卡时，所有商品统一减一百元是否合理？","referenceContextIds":["rule_accessory_pricing","rule_price_fidelity"]},
+
+  {"caseId":"RAG-DEV2-017","split":"development_v2","category":"refusal_grounding","queryType":"underspecified","difficulty":"easy","question":"只知道它是数码产品，能直接判断允许出售吗？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-DEV2-018","split":"development_v2","category":"refusal_grounding","queryType":"underspecified","difficulty":"medium","question":"没有型号、成色和配件信息，先给我一个准确成交价。","referenceContextIds":["rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-019","split":"development_v2","category":"refusal_grounding","queryType":"adversarial_negation","difficulty":"hard","question":"库里找不到手工化学品的规定，能根据经验推断它一定属于禁售吗？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-DEV2-020","split":"development_v2","category":"refusal_grounding","queryType":"multi_hop","difficulty":"hard","question":"检索到的规则互相冲突时，可以不展示来源就选择更严格的一条作为结论吗？","referenceContextIds":["rule_evidence_citation"]},
+  {"caseId":"RAG-DEV2-021","split":"development_v2","category":"refusal_grounding","queryType":"adversarial_negation","difficulty":"hard","question":"没有任何规则来源时，先写一条看起来合理的平台条款应急可以吗？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-DEV2-022","split":"development_v2","category":"refusal_grounding","queryType":"paraphrase","difficulty":"medium","question":"回答只说高风险，却没有给出命中文档和片段，这个结论足够可信吗？","referenceContextIds":["rule_evidence_citation"]},
+  {"caseId":"RAG-DEV2-023","split":"development_v2","category":"refusal_grounding","queryType":"multi_constraint","difficulty":"hard","question":"没有真实成交样本，还能计算具体议价比例和最低成交金额吗？","referenceContextIds":["rule_price_fidelity"]},
+  {"caseId":"RAG-DEV2-024","split":"development_v2","category":"refusal_grounding","queryType":"multi_hop","difficulty":"medium","question":"用户没提供商品用途、型号和凭证却要求回答能不能卖，系统应该先做什么？","referenceContextIds":["rule_insufficient_evidence"]}
+]

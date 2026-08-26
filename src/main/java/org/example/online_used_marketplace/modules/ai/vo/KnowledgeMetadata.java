@@ -45,6 +45,7 @@ public class KnowledgeMetadata {
     private String semanticTopic;
     private String chunkStrategyVersion;
     private String indexVersion;
+    private String logicalKnowledgeId;
     private Boolean overlap;
     private Integer overlapChars;
 

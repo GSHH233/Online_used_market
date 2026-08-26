@@ -99,6 +99,10 @@ public class KnowledgeSearchAgentTool implements AgentTool {
         row.put("docId", hit.getDocId());
         row.put("chunkId", hit.getChunkId());
         row.put("score", hit.getScore());
+        row.put("retrievalScore", hit.getRetrievalScore());
+        row.put("rerankScore", hit.getRerankScore());
+        row.put("rerankReason", hit.getRerankReason());
+        row.put("logicalKnowledgeId", hit.getLogicalKnowledgeId());
         row.put("sourceType", hit.getSourceType());
         row.put("sourceTrustLevel", hit.getSourceTrustLevel());
         row.put("docVersion", hit.getDocVersion());

@@ -1,0 +1,54 @@
+{
+  "schemaVersion": "1.0",
+  "protocol": "ragas-blind-holdout-v4",
+  "frozenAt": "2026-08-12T16:18:44+08:00",
+  "gitHead": "aad83cde52579d2ee8a93663564b428d548849ff",
+  "workingTreeDirty": true,
+  "policy": {
+    "developmentSplit": "development_v4",
+    "blindSplit": "holdout_v4",
+    "holdoutCreatedAfterFreeze": true,
+    "maximumBlindRuns": 1,
+    "postBlindTuningAllowed": false
+  },
+  "evaluation": {
+    "judgeAdapter": "metric-json",
+    "judgeModel": "qwen-max",
+    "generationModel": "qwen-turbo",
+    "topK": 5,
+    "concurrency": 2,
+    "minimumMetrics": {
+      "faithfulness": 0.8,
+      "answerRelevancy": 0.75,
+      "llmContextPrecision": 0.7,
+      "llmContextRecall": 0.7
+    },
+    "performanceGates": {
+      "endToEndP95Ms": 4000,
+      "generationP95Ms": 2500,
+      "averagePromptTokens": 1000,
+      "fallbackRate": 0.0
+    }
+  },
+  "files": {
+    "src/main/java/org/example/online_used_marketplace/modules/ai/config/TokenGovernanceProperties.java": "3a7fed13c9268728aebba9d39b4444bc242d8ea7312bd676664135b74c520a66",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/ChatGenerationServiceImpl.java": "f33692e3e28360cc96238389c7de4c2211a13e6f71d939ab15293f72432fc1fb",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/RagChatServiceImpl.java": "6c7036ebc2fd32cc7d4f4e934a23e0e0740c588aee6fba8787c40a3978854bc2",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/KnowledgeSearchServiceImpl.java": "81e1f2358bad926ecdd2ac9dea2dca6cb7d7bc5d2bba0d150138c4226d780e80",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/KnowledgeRetrievalExecutor.java": "08016c23e213f2431b56c39076caab53d280c6ee709ea169bae97b92ec77cccb",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/KnowledgeEvidencePlanner.java": "432d998a79e5254b2ada9f495d64720246a1360e77762ed25c82e206633b93a8",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/KnowledgeQueryConcepts.java": "dc1ef61d6ac998fa4038f00d665bf00d77f0eefabf1dee4025165790389f33a8",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/DeterministicKnowledgeReranker.java": "8051799286e2cfc46316f4cdb2befffd9e16de83a2ec88ee0adbf58eb8c473b8",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/KeywordSearchServiceImpl.java": "300d6719a0351678f57ba90c4577fae0552acbfc7ce9daf9be57809066cd8346",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/config/ElasticsearchIndexInitializer.java": "1eade4ed367cd9b0755573d5d9ff1064b1d51194e61c29567cf4e9b661cffd78",
+    "src/main/resources/application.yml": "a1f2a57becbbcd71e4ede31291c7f1fcf0ee8b596cb6cd14856c94abd728ef67",
+    "tools/ragas_rag_eval.py": "d1d8ae234a570ca3788b429008436b30fc50b8c779ef440c6e8cac2466e394b3",
+    "tools/ragas_dataset_validate.py": "0401750589b39d7b208710f90c853973b2193fc6e778696573995f3ead27a019",
+    "tools/ragas_release_freeze.py": "f06cb2f1fb583bdea1b4410b71c23e1b6980f2572a71d0bbc46cdcd23d484d39",
+    "eval/datasets/ragas_knowledge_catalog.json": "30bae5fdf7a30415ebc7bd925108ac733977622de0c5afb3e10d1f7a3dc3455a",
+    "eval/datasets/ragas_rag_development_v4_dataset.json": "2acf58e13f542a0e605a784dda04b10540454698659cacbd8cd845ad997d85ba",
+    "eval/datasets/ragas_rag_regression_dataset.json": "87cf8e46e2b976030c7b3a2511fe6dcc1bf12439e19ab364739f3499a8a24448",
+    "eval/reports/ragas_rag_development_v4_frozen_candidate_report.md": "c2dc49dfc1c379c8d9fc1177ed8c98b3b973383cb64174ae887a67d6136c7bb4",
+    "eval/reports/ragas_rag_regression_v4_freeze_report.md": "64473e2b2137670658f9e3a5e93b320a44e3957b9ac95f4ffe6783c192ae1c63"
+  }
+}

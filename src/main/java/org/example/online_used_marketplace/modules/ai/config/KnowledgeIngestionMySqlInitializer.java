@@ -46,6 +46,15 @@ public class KnowledgeIngestionMySqlInitializer {
             addIndexIfMissing(
                     "idx_ai_doc_ingestion_version",
                     "`file_hash`, `parser_version`, `chunk_strategy_version`, `embedding_model`");
+            addIndexIfMissing(
+                    "idx_ai_doc_logical_revision",
+                    "`logical_knowledge_id`, `status`, `revision`");
+            addIndexIfMissing(
+                    "idx_ai_doc_content_hash",
+                    "`content_hash`, `source_type`");
+            addIndexIfMissing(
+                    "idx_ai_doc_retired_cleanup",
+                    "`status`, `retention_until`, `cleanup_status`");
             log.info("[KnowledgeIngestion] MySQL schema initialized");
         } catch (Exception ex) {
             throw new IllegalStateException("Knowledge ingestion MySQL schema initialization failed", ex);
@@ -99,6 +108,17 @@ public class KnowledgeIngestionMySqlInitializer {
         columns.put("chunk_strategy_version", "varchar(64) DEFAULT NULL");
         columns.put("embedding_model", "varchar(128) DEFAULT NULL");
         columns.put("active_index_version", "varchar(96) DEFAULT NULL");
+        columns.put("logical_knowledge_id", "varchar(128) DEFAULT NULL");
+        columns.put("content_hash", "char(64) DEFAULT NULL");
+        columns.put("revision", "int NOT NULL DEFAULT 1");
+        columns.put("supersedes_doc_id", "bigint DEFAULT NULL");
+        columns.put("lifecycle_managed", "tinyint(1) NOT NULL DEFAULT 0");
+        columns.put("published_at", "datetime(6) DEFAULT NULL");
+        columns.put("retired_at", "datetime(6) DEFAULT NULL");
+        columns.put("retention_until", "datetime(6) DEFAULT NULL");
+        columns.put("cleanup_status", "varchar(32) DEFAULT NULL");
+        columns.put("cleanup_error", "varchar(500) DEFAULT NULL");
+        columns.put("cleaned_at", "datetime(6) DEFAULT NULL");
         return columns;
     }
 

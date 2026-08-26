@@ -23,6 +23,7 @@ import java.util.List;
 @RequiredArgsConstructor
 @Slf4j
 public class JwtFilter extends OncePerRequestFilter {
+    private static final String AIOPS_ALERTMANAGER_WEBHOOK = "/api/ai/aiops/alerts/alertmanager";
     private final JwtUtil jwtUtil;
 
     @Value("${jwt.token-header}")
@@ -63,6 +64,11 @@ public class JwtFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    @Override
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        return AIOPS_ALERTMANAGER_WEBHOOK.equals(request.getRequestURI());
     }
 
     public void writeUnauthorized(HttpServletResponse response, String message) {

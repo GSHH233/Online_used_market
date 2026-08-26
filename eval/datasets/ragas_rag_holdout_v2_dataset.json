@@ -1,0 +1,25 @@
+[
+  {"caseId":"RAG-HOLD2-001","split":"holdout_v2","category":"transaction_safety","queryType":"multi_constraint","difficulty":"hard","question":"卖家说商品金额在订单里付，但包装运输费要扫另一个码补齐，发生纠纷时这笔钱受保障吗？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD2-002","split":"holdout_v2","category":"transaction_safety","queryType":"paraphrase","difficulty":"medium","question":"链接继续挂在平台，双方改用电话约地点并当面交现金，这种成交方式是否符合要求？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD2-003","split":"holdout_v2","category":"transaction_safety","queryType":"adversarial_negation","difficulty":"hard","question":"货款通过担保订单支付就够了吧，额外的售后保证金转到微信应该不影响维权？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD2-004","split":"holdout_v2","category":"transaction_safety","queryType":"multi_hop","difficulty":"hard","question":"邮箱和手机号都已换给买家，可实名认证仍在原主人名下，这个游戏账户能承诺以后绝不会被申诉取回吗？","referenceContextIds":["rule_account_trade"]},
+  {"caseId":"RAG-HOLD2-005","split":"holdout_v2","category":"transaction_safety","queryType":"adversarial_negation","difficulty":"hard","question":"游戏条款不允许角色转让，把商品名称改成陪练教程并私下交接账号能规避风险吗？","referenceContextIds":["rule_account_trade","rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD2-006","split":"holdout_v2","category":"transaction_safety","queryType":"colloquial","difficulty":"medium","question":"买家拿旧机来换，我只让他在线拍一块钱，剩下的差价见面结清，这么操作靠谱吗？","referenceContextIds":["rule_off_platform_trade"]},
+
+  {"caseId":"RAG-HOLD2-007","split":"holdout_v2","category":"pricing","queryType":"multi_constraint","difficulty":"hard","question":"手机只报了容量和电池健康，屏幕来源、拆修记录都空着，参考在售页面能不能给出一个确定收购价？","referenceContextIds":["rule_phone_pricing","rule_price_fidelity"]},
+  {"caseId":"RAG-HOLD2-008","split":"holdout_v2","category":"pricing","queryType":"multi_hop","difficulty":"hard","question":"显卡跑分正常却无法确认是否长期挖矿，风扇温度和保修也没资料，应该依据哪些信息估值？","referenceContextIds":["rule_gpu_history","rule_gpu_pricing"]},
+  {"caseId":"RAG-HOLD2-009","split":"holdout_v2","category":"pricing","queryType":"multi_constraint","difficulty":"hard","question":"相机快门接近寿命上限又缺充电器，按每增加一万次就统一少卖5%是否有足够依据？","referenceContextIds":["rule_camera_pricing","rule_accessory_pricing","rule_price_fidelity"]},
+  {"caseId":"RAG-HOLD2-010","split":"holdout_v2","category":"pricing","queryType":"adversarial_negation","difficulty":"hard","question":"新品发布前同款游戏本的标价都变高了，不看实际成交直接上调12%应该也算合理吧？","referenceContextIds":["rule_seasonal_pricing","rule_price_fidelity"]},
+  {"caseId":"RAG-HOLD2-011","split":"holdout_v2","category":"pricing","queryType":"paraphrase","difficulty":"medium","question":"不论手机、相机还是电脑，从近乎全新降一档成色都扣同一笔金额，这套估价方法可靠吗？","referenceContextIds":["rule_condition_price_gap","rule_price_fidelity"]},
+  {"caseId":"RAG-HOLD2-012","split":"holdout_v2","category":"pricing","queryType":"multi_hop","difficulty":"hard","question":"航拍机只有机身、遥控器和桨叶，电池与充电设备缺失，也找不到同款成交，怎样给报价才不会凭空猜？","referenceContextIds":["rule_drone_battery_pricing","rule_price_fidelity"]},
+
+  {"caseId":"RAG-HOLD2-013","split":"holdout_v2","category":"refusal_grounding","queryType":"underspecified","difficulty":"hard","question":"资料库没有覆盖某种工业零件，仅凭名称听起来危险，助手可以直接判定为违禁品吗？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-HOLD2-014","split":"holdout_v2","category":"refusal_grounding","queryType":"underspecified","difficulty":"medium","question":"用户只传了一张局部照片，没有品名、用途和规格，却要求马上确认能上架，系统应如何回应？","referenceContextIds":["rule_insufficient_evidence"]},
+  {"caseId":"RAG-HOLD2-015","split":"holdout_v2","category":"refusal_grounding","queryType":"adversarial_negation","difficulty":"hard","question":"原先引用的规则文档已经失效，只剩会话里的一句旧结论，还能继续按高风险回答吗？","referenceContextIds":["rule_evidence_citation","rule_insufficient_evidence"]},
+  {"caseId":"RAG-HOLD2-016","split":"holdout_v2","category":"refusal_grounding","queryType":"multi_hop","difficulty":"hard","question":"两个有效文档对同一商品给出相反要求，助手选其中一项时需要向用户展示什么依据？","referenceContextIds":["rule_evidence_citation"]},
+  {"caseId":"RAG-HOLD2-017","split":"holdout_v2","category":"refusal_grounding","queryType":"adversarial_negation","difficulty":"hard","question":"查不到成交资料也没有完整配置，先生成一个具体折扣方便客服回复，之后再补证据可以吗？","referenceContextIds":["rule_price_fidelity","rule_insufficient_evidence"]},
+  {"caseId":"RAG-HOLD2-018","split":"holdout_v2","category":"refusal_grounding","queryType":"contextual_reference","difficulty":"medium","question":"前文和图片都没有提供，用户只问‘这个东西合法吗’，知识助手应该给确定答案还是先追问信息？","referenceContextIds":["rule_insufficient_evidence"]},
+
+  {"caseId":"RAG-HOLD2-019","split":"holdout_v2","category":"cross_domain","queryType":"multi_hop","difficulty":"hard","question":"手机声称从未激活却拿不出购买记录，卖家还要求先转订金再验机，这里需要同时核对哪些风险？","referenceContextIds":["rule_phone_invoice","rule_off_platform_trade"]},
+  {"caseId":"RAG-HOLD2-020","split":"holdout_v2","category":"cross_domain","queryType":"multi_constraint","difficulty":"hard","question":"出售可找回的账号时，卖家让买家先在线下支付保证金，再承诺永久使用权，这个方案有哪些问题？","referenceContextIds":["rule_account_trade","rule_off_platform_trade"]}
+]

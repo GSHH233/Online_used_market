@@ -76,6 +76,7 @@ public class KnowledgeDocumentUploadServiceImpl implements KnowledgeDocumentUplo
                                             String tags,
                                             String sourceTrustLevel,
                                             String docVersion,
+                                            String logicalKnowledgeId,
                                             boolean async) {
         if (file == null || file.isEmpty()) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "知识文件不能为空");
@@ -144,6 +145,7 @@ public class KnowledgeDocumentUploadServiceImpl implements KnowledgeDocumentUplo
             dto.setTags(tags);
             dto.setSourceTrustLevel(sourceTrustLevel);
             dto.setDocVersion(StringUtils.hasText(docVersion) ? docVersion : "v1");
+            dto.setLogicalKnowledgeId(logicalKnowledgeId);
             dto.setFileName(fileName);
             dto.setMimeType(detectedMime);
             dto.setFileHash(fileHash);

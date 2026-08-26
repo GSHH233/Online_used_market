@@ -181,10 +181,10 @@ def run_case(case: dict[str, Any], ctx: Context) -> CaseResult:
             ctx.values["piiGapId"] = gap["id"]
 
         elif scenario == "email_token_redaction":
-            fake_token = "sk" + "-abcdefghijklmnop123456"
-            gap = ctx.unresolved(f"邮箱demo@example.com token {fake_token}规则{ctx.run_id}", "pii-token")
+            fake_api_token = "sk-" + "abcdefghijklmnop123456"
+            gap = ctx.unresolved(f"邮箱demo@example.com token {fake_api_token}规则{ctx.run_id}", "pii-token")
             expect("demo@example.com" not in gap.get("query", ""), "emailNotRedacted", failures)
-            expect(fake_token not in gap.get("query", ""), "tokenNotRedacted", failures)
+            expect(fake_api_token not in gap.get("query", ""), "tokenNotRedacted", failures)
 
         elif scenario == "internal_triage":
             response, _ = ctx.request("PATCH", f"/api/ai/knowledge/gaps/{ctx.values['piiGapId']}", "internal",

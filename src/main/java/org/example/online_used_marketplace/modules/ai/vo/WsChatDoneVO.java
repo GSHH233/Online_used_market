@@ -81,4 +81,14 @@ public class WsChatDoneVO {
     private Integer trimmedTokens;
 
     private Boolean tokenUsageEstimated;
+
+    private Long contextAssemblyElapsedMs;
+
+    private Long retrievalElapsedMs;
+
+    private Long generationElapsedMs;
+
+    private Long totalElapsedMs;
+
+    private Boolean evaluationMode = false;
 }

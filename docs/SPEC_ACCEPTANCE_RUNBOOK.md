@@ -58,7 +58,7 @@
 创建报告目录：
 
 ```powershell
-cd <project-root>
+cd F:\Online_used_marketplace
 New-Item -ItemType Directory -Force eval\reports | Out-Null
 ```
 
@@ -153,6 +153,26 @@ python tools/storage_consistency_eval.py `
 4. 预期操作失败或转人工，新版本不能切换为 ACTIVE。
 5. 恢复存储服务后再次查询文档和检索结果。
 6. 原 `activeIndexVersion`、原 chunk 和召回结果必须仍然存在。
+
+### 4.3 新版本保留期与受控回滚
+
+运行新增版本生命周期评测：
+
+```powershell
+python tools/knowledge_version_lifecycle_eval.py `
+  --base-url $BASE_URL `
+  --internal-bearer-token $INTERNAL_TOKEN `
+  --admin-bearer-token $ADMIN_TOKEN `
+  --out eval/reports/knowledge_version_lifecycle_eval_report.md
+```
+
+通过标准：
+
+1. 新 revision 完成验证后，旧 revision 为 `RETIRED`，不再出现在检索结果。
+2. 旧 revision 的 DB/ES/Milvus chunk 在 `retentionUntil` 前仍存在，默认保留 7 天。
+3. 回滚只能由 INTERNAL 创建 `ROLLBACK_KNOWLEDGE_REVISION` 计划、ADMIN 审批并执行。
+4. 回滚重建三存储并通过一致性校验后，目标 revision 切回 `ACTIVE`，原 ACTIVE 变为 `RETIRED`。
+5. 定时清理由 `KnowledgeRetiredVersionCleanupServiceImplTest` 覆盖；生产环境不应通过缩短保留期来验收。
 
 ## 5. 批次 1B：Query Rewrite
 

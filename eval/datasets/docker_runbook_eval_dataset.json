@@ -1,0 +1,9 @@
+[
+  {"caseId":"DOCKER-RUNBOOK-001","scenario":"catalog","maxLatencyMs":3000},
+  {"caseId":"DOCKER-RUNBOOK-002","scenario":"user_catalog_denied","maxLatencyMs":3000},
+  {"caseId":"DOCKER-RUNBOOK-003","scenario":"infrastructure_params_rejected","maxLatencyMs":3000},
+  {"caseId":"DOCKER-RUNBOOK-004","scenario":"unknown_target_rejected","maxLatencyMs":3000},
+  {"caseId":"DOCKER-RUNBOOK-005","scenario":"dry_run","maxLatencyMs":3000},
+  {"caseId":"DOCKER-RUNBOOK-006","scenario":"execute_before_approval_denied","liveOnly":true,"maxLatencyMs":3000},
+  {"caseId":"DOCKER-RUNBOOK-007","scenario":"approve_and_execute","liveOnly":true,"maxLatencyMs":45000}
+]

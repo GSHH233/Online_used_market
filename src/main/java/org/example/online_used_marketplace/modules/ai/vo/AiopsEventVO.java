@@ -13,6 +13,12 @@ public class AiopsEventVO {
 
     private String eventKey;
 
+    private String fingerprint;
+
+    private String correlationKey;
+
+    private Integer occurrenceCount;
+
     private String traceId;
 
     private String severity;
@@ -42,6 +48,16 @@ public class AiopsEventVO {
     private Boolean manualRequired;
 
     private String escalationReason;
+
+    private LocalDateTime sourceStartedAt;
+
+    private LocalDateTime sourceEndedAt;
+
+    private String diagnosisStatus;
+
+    private String diagnosisJson;
+
+    private Long operationId;
 
     private List<AiopsActionVO> actions = new ArrayList<>();
 }

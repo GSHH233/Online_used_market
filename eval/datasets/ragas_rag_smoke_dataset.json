@@ -1,0 +1,12 @@
+[
+  {"caseId":"RAG-SMOKE-001","split":"smoke","category":"disclosure_quality","queryType":"paraphrase","difficulty":"medium","question":"二手手机写全新未拆封但拿不出发票，会有什么风险？","referenceContextIds":["rule_phone_invoice"]},
+  {"caseId":"RAG-SMOKE-002","split":"smoke","category":"disclosure_quality","queryType":"paraphrase","difficulty":"medium","question":"RTX3060 只放跑分图，不说矿卡和高负载历史可以吗？","referenceContextIds":["rule_gpu_history"]},
+  {"caseId":"RAG-SMOKE-003","split":"smoke","category":"disclosure_quality","queryType":"paraphrase","difficulty":"medium","question":"镜头有霉斑但拍照暂时正常，标题能不能写准新？","referenceContextIds":["rule_camera_condition"]},
+  {"caseId":"RAG-SMOKE-004","split":"smoke","category":"disclosure_quality","queryType":"multi_constraint","difficulty":"medium","question":"无人机炸机维修后现在能飞，上架时还要披露维修过程吗？","referenceContextIds":["rule_drone_repair"]},
+  {"caseId":"RAG-SMOKE-005","split":"smoke","category":"risk_compliance","queryType":"adversarial_negation","difficulty":"medium","question":"包没有票但我写原单正品、支持专柜验货，可以上架吗？","referenceContextIds":["rule_luxury_authenticity"]},
+  {"caseId":"RAG-SMOKE-006","split":"smoke","category":"transaction_safety","queryType":"colloquial","difficulty":"easy","question":"详情里留微信让买家私下转账便宜点，平台允许吗？","referenceContextIds":["rule_off_platform_trade"]},
+  {"caseId":"RAG-SMOKE-007","split":"smoke","category":"pricing","queryType":"adversarial_negation","difficulty":"medium","question":"没有成交记录，能不能直接建议按原价九折卖？","referenceContextIds":["rule_price_fidelity"]},
+  {"caseId":"RAG-SMOKE-008","split":"smoke","category":"risk_compliance","queryType":"paraphrase","difficulty":"easy","question":"未拆封处方药能作为个人闲置发布吗？","referenceContextIds":["rule_medicine_prohibited"]},
+  {"caseId":"RAG-SMOKE-009","split":"smoke","category":"risk_compliance","queryType":"multi_constraint","difficulty":"medium","question":"游戏账号出售时怎样说明实名绑定和找回风险？","referenceContextIds":["rule_account_trade"]},
+  {"caseId":"RAG-SMOKE-010","split":"smoke","category":"refusal_grounding","queryType":"multi_hop","difficulty":"hard","question":"只知道笔记本挺新，没有型号和电池数据，能直接估精确价格吗？","referenceContextIds":["rule_price_fidelity","rule_laptop_condition"]}
+]

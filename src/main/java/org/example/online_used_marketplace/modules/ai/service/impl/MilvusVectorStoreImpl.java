@@ -483,6 +483,7 @@ public class MilvusVectorStoreImpl implements VectorStore {
                         vo.setDocStatus(getAsString(meta, "docStatus"));
                         vo.setDisabledReason(getAsString(meta, "disabledReason"));
                         vo.setIndexVersion(getAsString(meta, "indexVersion"));
+                        vo.setLogicalKnowledgeId(getAsString(meta, "logicalKnowledgeId"));
                     } catch (Exception ignore) {
                         // metadata_json 解析失败不影响主流程
                     }

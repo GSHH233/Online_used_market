@@ -7,6 +7,7 @@ import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterD
 import org.example.online_used_marketplace.modules.ai.dto.ProductPublishAssistRequestDTO;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeSourceType;
 import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistStep;
+import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistRetrievalTraceHelper;
 import org.example.online_used_marketplace.modules.ai.pipeline.RagSourceMergeHelper;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
 import org.example.online_used_marketplace.modules.ai.service.PricingSuggestionService;
@@ -29,6 +30,7 @@ public class PricingStepImpl implements PublishAssistStep {
     private final PricingSuggestionService pricingSuggestionService;
     private final RagSourceMergeHelper ragSourceMergeHelper;
     private final KnowledgeSearchService knowledgeSearchService;
+    private final PublishAssistRetrievalTraceHelper retrievalTraceHelper;
     private static final int SOURCE_LIMIT = 10;
 
     @Override
@@ -54,6 +56,16 @@ public class PricingStepImpl implements PublishAssistStep {
         filter.setSourceType(KnowledgeSourceType.MARKET);
         KnowledgeSearchResponseVO response = knowledgeSearchService.search(question, 5, filter);
         List<KnowledgeSearchHitVO> hits = (response == null || response.getHits() == null) ? Collections.emptyList() : response.getHits();
+        retrievalTraceHelper.append(result, retrievalTraceHelper.toRetrievalTrace(
+                stepKey(),
+                "二手行情与定价规则检索",
+                result.getPipelineRound(),
+                KnowledgeSourceType.MARKET,
+                question,
+                5,
+                response,
+                false
+        ));
         List<RagSourceVO> incoming = ragSourceMergeHelper.toRagSources(hits);
         List<RagSourceVO> merged = ragSourceMergeHelper.mergeSources(result.getSources(), incoming, SOURCE_LIMIT);
         result.setSources(merged);

@@ -18,6 +18,18 @@
       {"field": "repair", "anyOf": ["无拆修", "没有拆修"]}
     ],
     "expectedCanPublish": true,
+    "expectedRetrieval": {
+      "minAttempts": 1,
+      "sourceType": "RULE",
+      "allowedModes": ["hybrid"],
+      "requiredStages": ["optimize", "risk", "pricing"],
+      "requiredSourceTypes": ["GUIDE", "RULE", "MARKET"],
+      "requireQuery": true,
+      "requireCounters": true,
+      "requireDebug": true,
+      "requireCountersForAllStages": true,
+      "requireDebugForAllStages": true
+    },
     "forbiddenRuleCodes": ["HIGH_PRIVATE_TRADE", "HIGH_WECHAT_PAY", "HIGH_STOLEN_DEVICE"]
   },
   {
@@ -168,5 +180,25 @@
     },
     "expectedCanPublish": true,
     "forbiddenRuleCodes": ["HIGH_PRIVATE_TRADE"]
+  },
+  {
+    "caseId": "PUBLISH-BIZ-013",
+    "tags": ["guardrail", "retrieval-observability"],
+    "input": {
+      "title": "这个东西能卖吗",
+      "description": "没写商品名称，也没想好怎么描述，帮我判断。",
+      "conditionText": "未知"
+    },
+    "expectedCanPublish": true,
+    "expectedRetrieval": {
+      "minAttempts": 1,
+      "sourceType": "RULE",
+      "allowedModes": ["keyword-only"],
+      "requiredStages": ["guardrail"],
+      "requiredSourceTypes": ["RULE"],
+      "requireQuery": true,
+      "requireCounters": true,
+      "requireDebug": true
+    }
   }
 ]

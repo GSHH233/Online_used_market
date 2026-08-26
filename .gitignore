@@ -18,6 +18,8 @@ spring.err.log
 ### Python tooling ###
 __pycache__/
 *.py[cod]
+.venv*/
+.playwright-cli/
 
 ### STS ###
 .apt_generated
@@ -60,6 +62,10 @@ used_marketplace_frontend/.vite/
 used_marketplace_frontend/skills-*/
 used_marketplace_frontend/*.local
 
-### Generated acceptance artifacts ###
+# Local evaluation credentials
+.tmp-*-token
+
+# Reproducible evaluation output stays local; datasets and scripts are tracked.
+eval/reports/
 output/
-*_eval_report_20*.md
+*_eval_report_*.md

@@ -73,9 +73,32 @@ public class RagChatServiceImpl implements RagChatService {
     private static final Pattern UNSUPPORTED_QUANTIFIED_ADVICE_PATTERN = Pattern.compile(
             "((\\d+(?:\\.\\d+)?\\s*[%-－—~～至到]\\s*\\d+(?:\\.\\d+)?\\s*(?:%|折|倍|元|块)?)|(\\d+(?:\\.\\d+)?\\s*(?:%|折|倍|元|块)))"
     );
+    private static final List<String> SENSITIVE_UNGROUNDED_TERMS = List.of(
+            "规避监管", "监管", "诈骗", "欺诈", "封号", "封禁", "处罚",
+            "违法", "法律", "合法", "所有权", "产权", "归属", "赔付", "赔偿",
+            "保障", "维权", "权益", "官方渠道", "联系客服", "责任划分", "付款责任",
+            "平台认定", "平台判定", "违反", "违规", "极高风险", "严重风险"
+    );
+    private static final List<String> UNCERTAINTY_MARKERS = List.of(
+            "无法确定", "不能确定", "无法判断", "不能判断", "证据不足", "证据未",
+            "未说明", "未提供", "缺少", "尚不能", "还不能"
+    );
 
     @Override
     public WsChatDoneVO chat(String sessionId, String question, String traceId, Integer topK, KnowledgeSearchFilterDTO filter) {
+        return chatInternal(sessionId, question, traceId, topK, filter, false);
+    }
+
+    @Override
+    public WsChatDoneVO chatForEvaluation(String sessionId, String question, String traceId,
+                                          Integer topK, KnowledgeSearchFilterDTO filter) {
+        return chatInternal(sessionId, question, traceId, topK, filter, true);
+    }
+
+    private WsChatDoneVO chatInternal(String sessionId, String question, String traceId,
+                                      Integer topK, KnowledgeSearchFilterDTO filter,
+                                      boolean evaluationMode) {
+        long requestStartedNanos = System.nanoTime();
         if (!StringUtils.hasText(question)) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "问题不能为空");
         }
@@ -84,24 +107,36 @@ public class RagChatServiceImpl implements RagChatService {
         Integer normalizedTopK = ((topK == null || topK <= 0) ? 5 : topK);
         String memoryUserId = StringUtils.hasText(sessionId) ? sessionId : "anonymous";
 
-        Map<String, String> explicitPreferences = extractPreferencesByRule(normalizedQuestion);
-        Map<String, String> llmPreferences = extractPreferencesByLlm(normalizedQuestion, traceId);
+        Map<String, String> explicitPreferences = evaluationMode
+                ? Collections.emptyMap()
+                : extractPreferencesByRule(normalizedQuestion);
+        Map<String, String> llmPreferences = evaluationMode
+                ? Collections.emptyMap()
+                : extractPreferencesByLlm(normalizedQuestion, traceId);
         Map<String, String> preferenceCandidates = mergePreferences(explicitPreferences, llmPreferences);
 
-        String sessionSummary = shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
+        String sessionSummary = evaluationMode ? "" : shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
                 ? "（本轮用户已切换当前商品，旧L3摘要不注入）"
                 : sessionSummaryService.getSummary(sessionId);
-        Map<String, String> l3AutofillParams = shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
+        Map<String, String> l3AutofillParams = evaluationMode || shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
                 ? Collections.emptyMap()
                 : sessionSummaryService.getAutofillParams(sessionId);
-        UserProfileVO historicalProfile = userProfileService.buildProfile(memoryUserId, sessionId);
-        Map<String, String> historicalPreferences = userProfileService.toPreferenceMap(historicalProfile);
+        UserProfileVO historicalProfile = evaluationMode
+                ? new UserProfileVO()
+                : userProfileService.buildProfile(memoryUserId, sessionId);
+        Map<String, String> historicalPreferences = evaluationMode
+                ? Collections.emptyMap()
+                : userProfileService.toPreferenceMap(historicalProfile);
         Map<String, String> autofillBase = mergePreferences(l3AutofillParams, historicalPreferences);
         PreferenceAutofillService.AutofillResult autofillResult = preferenceAutofillService.autofill(explicitPreferences, autofillBase);
 
         Map<String, String> extractedPreferences = mergePreferences(autofillResult.getMergedParams(), preferenceCandidates);
-        persistPreferencesToL2(memoryUserId, sessionId, preferenceCandidates);
-        UserProfileVO effectiveProfile = userProfileService.mergeCurrentTurn(historicalProfile, extractedPreferences);
+        if (!evaluationMode) {
+            persistPreferencesToL2(memoryUserId, sessionId, preferenceCandidates);
+        }
+        UserProfileVO effectiveProfile = evaluationMode
+                ? historicalProfile
+                : userProfileService.mergeCurrentTurn(historicalProfile, extractedPreferences);
         String preferenceAutofillDebug = "autofilledFields=" + autofillResult.getAutofilledFields()
                 + ",explicit=" + explicitPreferences
                 + ",historicalProfile=" + historicalPreferences
@@ -109,12 +144,16 @@ public class RagChatServiceImpl implements RagChatService {
                 + ",final=" + extractedPreferences
                 + ",profile=" + userProfileService.toPreferenceMap(effectiveProfile);
 
-        List<String> recentContext = conversationMemoryService.getRecentMessages(sessionId, 10);
-        List<String> l2MemoryContext = l2MemoryService.retrieve(memoryUserId, sessionId, normalizedQuestion, 3, 0.4D)
-                .stream()
-                .map(one -> "[" + one.getMemoryType() + "] " + one.getContent())
-                .toList();
-        String preferencePromptBlock = userProfileService.toPromptBlock(effectiveProfile);
+        List<String> recentContext = evaluationMode
+                ? Collections.emptyList()
+                : conversationMemoryService.getRecentMessages(sessionId, 10);
+        List<String> l2MemoryContext = evaluationMode
+                ? Collections.emptyList()
+                : l2MemoryService.retrieve(memoryUserId, sessionId, normalizedQuestion, 3, 0.4D)
+                        .stream()
+                        .map(one -> "[" + one.getMemoryType() + "] " + one.getContent())
+                        .toList();
+        String preferencePromptBlock = evaluationMode ? "" : userProfileService.toPromptBlock(effectiveProfile);
         String memoryAssemblyDebug = buildMemoryAssemblyDebug(
                 normalizedQuestion,
                 sessionId,
@@ -126,18 +165,24 @@ public class RagChatServiceImpl implements RagChatService {
                 recentContext,
                 preferenceAutofillDebug
         );
+        long contextAssemblyElapsedMs = elapsedMs(requestStartedNanos);
 
+        long retrievalStartedNanos = System.nanoTime();
         KnowledgeSearchResponseVO searchResp = knowledgeSearchService.searchHybrid(normalizedQuestion, normalizedTopK, filter);
+        long retrievalElapsedMs = searchResp != null && searchResp.getRetrievalElapsedMs() != null
+                ? searchResp.getRetrievalElapsedMs()
+                : elapsedMs(retrievalStartedNanos);
         List<KnowledgeSearchHitVO> hits = (searchResp == null || searchResp.getHits() == null) ? Collections.emptyList() : searchResp.getHits();
         if (hits.isEmpty()) {
             WsChatDoneVO vo = buildEmptyResponse(traceId, searchResp);
             vo.setMemoryAssemblyDebug(memoryAssemblyDebug);
-            return publishOutcome(vo, normalizedQuestion, sessionId, normalizedTopK,
-                    classifyGapReason(normalizedQuestion, "NO_RETRIEVAL"));
+            return finishTurn(vo, normalizedQuestion, memoryUserId, sessionId, normalizedTopK,
+                    classifyGapReason(normalizedQuestion, "NO_RETRIEVAL"), false,
+                    evaluationMode, contextAssemblyElapsedMs, retrievalElapsedMs, 0L, requestStartedNanos);
         }
 
         List<Double> scores = hits.stream()
-                .map(KnowledgeSearchHitVO::getScore)
+                .map(hit -> hit.getRetrievalScore() == null ? hit.getScore() : hit.getRetrievalScore())
                 .filter(Objects::nonNull)
                 .sorted(Comparator.reverseOrder())
                 .toList();
@@ -174,7 +219,8 @@ public class RagChatServiceImpl implements RagChatService {
                 continue;
             }
             if (StringUtils.hasText(hit.getSnippet())) {
-                snippets.add(hit.getSnippet());
+                String title = StringUtils.hasText(hit.getDocTitle()) ? hit.getDocTitle().trim() : "未命名规则";
+                snippets.add("[证据" + (snippets.size() + 1) + "|" + title + "]\n" + hit.getSnippet().trim());
             }
             RagSourceVO vo = new RagSourceVO();
             BeanUtils.copyProperties(hit, vo);
@@ -198,11 +244,9 @@ public class RagChatServiceImpl implements RagChatService {
             vo.setGenerationMode("EVIDENCE_REFUSAL");
             vo.setFallbackUsed(false);
             vo.setFallbackReason("");
-            conversationMemoryService.appendTurn(sessionId, normalizedQuestion, vo.getAnswer());
-            sessionSummaryService.refreshSummaryIfNeeded(sessionId, normalizedQuestion, vo.getAnswer());
-            l2MemoryService.saveMemory(memoryUserId, sessionId, "FACT", normalizedQuestion + " -> " + vo.getAnswer(), 0.3D);
-            return publishOutcome(vo, normalizedQuestion, sessionId, normalizedTopK,
-                    classifyGapReason(normalizedQuestion, "LOW_CONFIDENCE"));
+            return finishTurn(vo, normalizedQuestion, memoryUserId, sessionId, normalizedTopK,
+                    classifyGapReason(normalizedQuestion, "LOW_CONFIDENCE"), true,
+                    evaluationMode, contextAssemblyElapsedMs, retrievalElapsedMs, 0L, requestStartedNanos);
         }
 
         String context = String.join("\n---\n", snippets);
@@ -218,16 +262,27 @@ public class RagChatServiceImpl implements RagChatService {
                 4. 用户已给出的商品、配件、缺失项、状态和检测结果必须在回答中复述并纳入建议。
                 5. 证据要求补图、实拍样张或检测截图时，必须明确提醒。
                 6. Profile 只用于默认参数，不得覆盖本轮事实、RAG证据和风险规则。
+                7. 每个风险结论必须引用对应的[证据N]；不得用“通常、一般、平台可能规定”等外部常识补齐证据。
+                8. 用户场景与证据属于同一风险类型时，应给出证据支持的定性结论；只有关键事实确实缺失时才说无法确定。
+                9. 除非证据原文明确出现，不得扩展“规避监管、诈骗、封号、平台赔付或保障范围、法律所有权、联系客服”等结论或建议。
                 """;
-        TokenBudgetResult tokenBudget = tokenGovernanceService.assemble(TokenScene.RAG_CHAT, List.of(
-                TokenPromptSection.of("回答约束", answerRules, 100, true),
-                TokenPromptSection.of("本轮问题", normalizedQuestion, 100, true),
-                TokenPromptSection.of("RAG证据", context, 95, true),
-                TokenPromptSection.of("L3会话任务摘要", summaryContext, 70, false),
-                TokenPromptSection.of("用户结构化偏好", preferencePromptBlock, 60, false),
-                TokenPromptSection.of("L2长期事实与偏好", l2Context, 50, false),
-                TokenPromptSection.of("最近会话上下文", memoryContext, 40, false)
-        ));
+        String ragSystemPrompt = """
+                你是二手交易知识库问答助手。证据块是唯一事实来源。
+                只允许复述、归纳或应用证据中明确存在的规则，不得引入常识、经验、平台外规则或未经证据支持的建议。
+                回答内容只能由三部分组成：用户已经给出的事实、证据明确写出的规则、该规则对用户事实的直接适用结果。
+                回答必须简洁，并用[证据N]标明关键结论依据；证据不足时明确指出缺少的事实。
+                """;
+        List<TokenPromptSection> promptSections = new ArrayList<>();
+        promptSections.add(TokenPromptSection.of("回答约束", answerRules, 100, true));
+        promptSections.add(TokenPromptSection.of("本轮问题", normalizedQuestion, 100, true));
+        promptSections.add(TokenPromptSection.of("RAG证据", context, 95, true));
+        if (!evaluationMode) {
+            addOptionalPromptSection(promptSections, "L3会话任务摘要", summaryContext, 70);
+            addOptionalPromptSection(promptSections, "用户结构化偏好", preferencePromptBlock, 60);
+            addOptionalPromptSection(promptSections, "L2长期事实与偏好", l2Context, 50);
+            addOptionalPromptSection(promptSections, "最近会话上下文", memoryContext, 40);
+        }
+        TokenBudgetResult tokenBudget = tokenGovernanceService.assemble(TokenScene.RAG_CHAT, promptSections);
         String prompt = tokenBudget.getPrompt();
 
         String answer;
@@ -235,10 +290,12 @@ public class RagChatServiceImpl implements RagChatService {
         String generationMode = "LLM";
         boolean fallbackUsed = false;
         String fallbackReason = "";
+        long generationStartedNanos = System.nanoTime();
         try {
             generationResult = chatGenerationService.generate(TokenGenerationRequest.builder()
                     .scene(TokenScene.RAG_CHAT)
                     .traceId(traceId)
+                    .systemPrompt(ragSystemPrompt)
                     .prompt(prompt)
                     .budgetResult(tokenBudget)
                     .build());
@@ -250,6 +307,9 @@ public class RagChatServiceImpl implements RagChatService {
             fallbackUsed = true;
             fallbackReason = "回答模型暂不可用，已根据检索证据生成降级回答";
         }
+        long generationElapsedMs = generationResult != null && generationResult.getElapsedMs() > 0
+                ? generationResult.getElapsedMs()
+                : elapsedMs(generationStartedNanos);
         answer = improveWeakInsufficientAnswer(answer, normalizedQuestion, sources);
         answer = enforceEvidenceFaithfulness(answer, normalizedQuestion, sessionSummary, sources);
 
@@ -280,10 +340,59 @@ public class RagChatServiceImpl implements RagChatService {
             vo.setTotalTokens(generationResult.getTotalTokens());
             vo.setTokenUsageEstimated(generationResult.isUsageEstimated());
         }
-        conversationMemoryService.appendTurn(sessionId, normalizedQuestion, answer);
-        sessionSummaryService.refreshSummaryIfNeeded(sessionId, normalizedQuestion, answer);
-        l2MemoryService.saveMemory(memoryUserId, sessionId, "FACT", normalizedQuestion + " -> " + answer, 0.3D);
-        return publishOutcome(vo, normalizedQuestion, sessionId, normalizedTopK, "");
+        return finishTurn(vo, normalizedQuestion, memoryUserId, sessionId, normalizedTopK,
+                "", true, evaluationMode, contextAssemblyElapsedMs, retrievalElapsedMs,
+                generationElapsedMs, requestStartedNanos);
+    }
+
+    private void addOptionalPromptSection(List<TokenPromptSection> sections, String name,
+                                          String content, int priority) {
+        if (!StringUtils.hasText(content) || "（无）".equals(content.trim())) {
+            return;
+        }
+        sections.add(TokenPromptSection.of(name, content, priority, false));
+    }
+
+    private WsChatDoneVO finishTurn(WsChatDoneVO response,
+                                    String question,
+                                    String memoryUserId,
+                                    String sessionId,
+                                    Integer topK,
+                                    String reasonCode,
+                                    boolean persistMemory,
+                                    boolean evaluationMode,
+                                    long contextAssemblyElapsedMs,
+                                    long retrievalElapsedMs,
+                                    long generationElapsedMs,
+                                    long requestStartedNanos) {
+        response.setEvaluationMode(evaluationMode);
+        if (!evaluationMode && persistMemory) {
+            conversationMemoryService.appendTurn(sessionId, question, response.getAnswer());
+            sessionSummaryService.refreshSummaryIfNeeded(sessionId, question, response.getAnswer());
+            l2MemoryService.saveMemory(memoryUserId, sessionId, "FACT",
+                    question + " -> " + response.getAnswer(), 0.3D);
+        }
+        WsChatDoneVO completed = evaluationMode
+                ? response
+                : publishOutcome(response, question, sessionId, topK, reasonCode);
+        applyStageTimings(completed, contextAssemblyElapsedMs, retrievalElapsedMs,
+                generationElapsedMs, requestStartedNanos);
+        return completed;
+    }
+
+    private void applyStageTimings(WsChatDoneVO response,
+                                   long contextAssemblyElapsedMs,
+                                   long retrievalElapsedMs,
+                                   long generationElapsedMs,
+                                   long requestStartedNanos) {
+        response.setContextAssemblyElapsedMs(Math.max(0L, contextAssemblyElapsedMs));
+        response.setRetrievalElapsedMs(Math.max(0L, retrievalElapsedMs));
+        response.setGenerationElapsedMs(Math.max(0L, generationElapsedMs));
+        response.setTotalElapsedMs(elapsedMs(requestStartedNanos));
+    }
+
+    private long elapsedMs(long startedNanos) {
+        return java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
     }
 
     private WsChatDoneVO publishOutcome(WsChatDoneVO response, String query, String sessionId,
@@ -365,10 +474,124 @@ public class RagChatServiceImpl implements RagChatService {
 
     private String enforceEvidenceFaithfulness(String answer, String question, String sessionSummary, List<RagSourceVO> sources) {
         String sanitized = sanitizeUnsupportedQuantifiedAdvice(answer, question, sources);
+        sanitized = sanitizeUnsupportedSensitiveClaims(sanitized, question, sources);
         sanitized = appendMissingQuestionFacts(sanitized, question);
         sanitized = appendMissingSessionFacts(sanitized, sessionSummary);
         sanitized = appendEvidenceRequiredMediaAdvice(sanitized, question, sources);
         return sanitized;
+    }
+
+    private String sanitizeUnsupportedSensitiveClaims(String answer, String question, List<RagSourceVO> sources) {
+        if (!StringUtils.hasText(answer)) {
+            return answer;
+        }
+        String evidenceCorpus = buildSourceEvidenceCorpus(sources);
+        String[] sentences = answer.split("(?<=[。！？!?])|\\n+");
+        List<String> kept = new ArrayList<>();
+        boolean removed = false;
+        for (String sentence : sentences) {
+            if (!StringUtils.hasText(sentence)) {
+                continue;
+            }
+            String trimmed = sentence.trim();
+            String normalized = normalizeForEvidenceCheck(trimmed);
+            boolean hasUnsupportedSensitiveTerm = SENSITIVE_UNGROUNDED_TERMS.stream()
+                    .map(this::normalizeForEvidenceCheck)
+                    .anyMatch(term -> normalized.contains(term) && !evidenceCorpus.contains(term));
+            if (hasUnsupportedSensitiveTerm && !isExplicitUncertainty(normalized)) {
+                removed = true;
+                continue;
+            }
+            kept.add(trimmed);
+        }
+        boolean questionRequestsUnsupportedSensitiveConclusion = SENSITIVE_UNGROUNDED_TERMS.stream()
+                .map(this::normalizeForEvidenceCheck)
+                .anyMatch(term -> normalizeForEvidenceCheck(question).contains(term) && !evidenceCorpus.contains(term));
+        if (!removed && !questionRequestsUnsupportedSensitiveConclusion) {
+            return answer;
+        }
+        String grounded = summarizeEvidenceWithCitations(question, sources, 2);
+        if (!StringUtils.hasText(grounded)) {
+            return "现有证据不足以支持更具体的风险后果，无法确定。";
+        }
+        String questionFocus = StringUtils.hasText(question)
+                ? question.replaceAll("\\s+", " ").trim()
+                : "该问题";
+        if (questionFocus.length() > 90) {
+            questionFocus = questionFocus.substring(0, 90) + "…";
+        }
+        return grounded + "对于你问的“" + questionFocus
+                + "”，现有证据只覆盖上述规则，未直接说明该具体结论，因此无法确定。";
+    }
+
+    private boolean isExplicitUncertainty(String sentence) {
+        return UNCERTAINTY_MARKERS.stream().anyMatch(sentence::contains);
+    }
+
+    private String buildSourceEvidenceCorpus(List<RagSourceVO> sources) {
+        StringBuilder sb = new StringBuilder();
+        if (sources != null) {
+            for (RagSourceVO source : sources) {
+                if (source == null) {
+                    continue;
+                }
+                if (StringUtils.hasText(source.getDocTitle())) {
+                    sb.append(source.getDocTitle()).append('\n');
+                }
+                if (StringUtils.hasText(source.getSnippet())) {
+                    sb.append(source.getSnippet()).append('\n');
+                }
+            }
+        }
+        return normalizeForEvidenceCheck(sb.toString());
+    }
+
+    private String summarizeEvidenceWithCitations(String question, List<RagSourceVO> sources, int limit) {
+        if (sources == null || sources.isEmpty()) {
+            return "";
+        }
+        List<String> questionTerms = new ArrayList<>(tokenize(question));
+        List<Integer> sourceIndexes = new ArrayList<>();
+        for (int index = 0; index < sources.size(); index++) {
+            sourceIndexes.add(index);
+        }
+        sourceIndexes.sort(Comparator
+                .comparingInt((Integer index) -> sourceQuestionOverlap(sources.get(index), questionTerms))
+                .reversed()
+                .thenComparingInt(Integer::intValue));
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new HashSet<>();
+        for (Integer index : sourceIndexes) {
+            if (out.size() >= limit) {
+                break;
+            }
+            RagSourceVO source = sources.get(index);
+            if (source == null || !StringUtils.hasText(source.getSnippet())) {
+                continue;
+            }
+            String sentence = compactSentence(pickBestSentence(source.getSnippet(), questionTerms));
+            if (!StringUtils.hasText(sentence) || !seen.add(sentence)) {
+                continue;
+            }
+            out.add("依据[证据" + (index + 1) + "]，" + sentence + "。");
+        }
+        return String.join("", out);
+    }
+
+    private int sourceQuestionOverlap(RagSourceVO source, List<String> questionTerms) {
+        if (source == null || !StringUtils.hasText(source.getSnippet())) {
+            return 0;
+        }
+        String corpus = (StringUtils.hasText(source.getDocTitle()) ? source.getDocTitle() + " " : "")
+                + source.getSnippet();
+        String normalized = normalizeForEvidenceCheck(corpus);
+        int overlap = 0;
+        for (String term : questionTerms) {
+            if (StringUtils.hasText(term) && normalized.contains(normalizeForEvidenceCheck(term))) {
+                overlap++;
+            }
+        }
+        return overlap;
     }
 
     private String sanitizeUnsupportedQuantifiedAdvice(String answer, String question, List<RagSourceVO> sources) {
@@ -466,6 +689,17 @@ public class RagChatServiceImpl implements RagChatService {
 
     private String appendMissingQuestionFacts(String answer, String question) {
         if (!StringUtils.hasText(answer) || !StringUtils.hasText(question)) {
+            return answer;
+        }
+        String normalizedQuestion = normalizeForEvidenceCheck(question);
+        boolean publicationContentQuestion = normalizedQuestion.contains("标题")
+                || normalizedQuestion.contains("文案")
+                || normalizedQuestion.contains("详情")
+                || normalizedQuestion.contains("发布")
+                || normalizedQuestion.contains("上架")
+                || normalizedQuestion.contains("描述")
+                || normalizedQuestion.contains("怎么写");
+        if (!publicationContentQuestion) {
             return answer;
         }
         List<String> facts = extractQuestionFacts(question);
@@ -670,7 +904,8 @@ public class RagChatServiceImpl implements RagChatService {
     }
 
     private String pickBestSentence(String snippet, List<String> questionTerms) {
-        String[] parts = snippet.split("[。！？!?；;\\n]");
+        String normalizedSnippet = snippet.replaceAll("\\s+", " ").trim();
+        String[] parts = normalizedSnippet.split("[。！？!?；;]");
         String best = "";
         int bestScore = -1;
         for (String part : parts) {

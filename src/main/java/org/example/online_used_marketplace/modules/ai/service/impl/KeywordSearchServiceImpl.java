@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * ES/BM25 关键词检索实现，ES 异常时自动回退 MySQL 词面匹配。
@@ -33,11 +34,14 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
     private final KnowledgeChunkMapper knowledgeChunkMapper;
 
     private final ThreadLocal<String> lastDebugInfo = new ThreadLocal<>();
+    private final AtomicBoolean indexReady = new AtomicBoolean(false);
 
     @Override
     public List<RagSourceVO> searchByKeyword(String question, int topK, KnowledgeSearchFilterDTO filter) {
+        KnowledgeEvidencePlanner.Plan evidencePlan = KnowledgeEvidencePlanner.plan(question);
         List<String> terms = buildKeywordTerms(question);
-        if (terms.isEmpty()) {
+        List<String> conceptTerms = evidencePlan.keywordExpansions();
+        if (terms.isEmpty() && conceptTerms.isEmpty()) {
             lastDebugInfo.set("esUsed=false,fallback=true,reason=emptyTerms");
             return Collections.emptyList();
         }
@@ -45,20 +49,179 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
         try {
             ElasticsearchOperations esOps = elasticsearchOperationsProvider.getIfAvailable();
             if (esOps == null) {
-                List<RagSourceVO> fallbackHits = searchFromMySqlMvp(terms, topK, filter);
+                List<RagSourceVO> fallbackHits = searchFromMySqlLanes(
+                        terms, conceptTerms, evidencePlan, topK, filter);
                 lastDebugInfo.set("esUsed=false,fallback=true,reason=noEsBean,fallbackHits=" + fallbackHits.size());
                 return fallbackHits;
             }
             ensureEsIndex(esOps);
-            List<RagSourceVO> esHits = searchFromEs(esOps, terms, topK, filter);
-            lastDebugInfo.set("esUsed=true,fallback=false,esHits=" + esHits.size());
+            List<RagSourceVO> lexicalHits = searchFromEs(esOps, terms, topK, filter);
+            List<RagSourceVO> conceptHits = conceptTerms.isEmpty()
+                    ? List.of()
+                    : searchFromEs(esOps, conceptTerms, conceptLaneK(topK), filter);
+            List<List<RagSourceVO>> evidenceHits = searchEvidenceLanesFromEs(
+                    esOps, evidencePlan, topK, filter);
+            List<RagSourceVO> esHits = fuseKeywordLanes(
+                    lexicalHits, conceptHits, evidenceHits, topK);
+            lastDebugInfo.set("esUsed=true,fallback=false,esHits=" + esHits.size()
+                    + ",lexicalHits=" + lexicalHits.size()
+                    + ",conceptHits=" + conceptHits.size()
+                    + ",evidenceLanes=" + evidenceHits.size()
+                    + ",evidenceHits=" + evidenceHits.stream().mapToInt(List::size).sum());
             return esHits;
         } catch (Exception ex) {
+            indexReady.set(false);
             log.warn("ES keyword search failed, fallback to mysql-mvp, reason={}", ex.getMessage());
-            List<RagSourceVO> fallbackHits = searchFromMySqlMvp(terms, topK, filter);
+            List<RagSourceVO> fallbackHits = searchFromMySqlLanes(
+                    terms, conceptTerms, evidencePlan, topK, filter);
             lastDebugInfo.set("esUsed=false,fallback=true,reason=" + ex.getClass().getSimpleName() + ",fallbackHits=" + fallbackHits.size());
             return fallbackHits;
         }
+    }
+
+    private List<RagSourceVO> searchFromMySqlLanes(List<String> terms,
+                                                    List<String> conceptTerms,
+                                                    KnowledgeEvidencePlanner.Plan evidencePlan,
+                                                    int topK,
+                                                    KnowledgeSearchFilterDTO filter) {
+        List<RagSourceVO> lexicalHits = terms.isEmpty()
+                ? List.of()
+                : searchFromMySqlMvp(terms, topK, filter);
+        List<RagSourceVO> conceptHits = conceptTerms.isEmpty()
+                ? List.of()
+                : searchFromMySqlMvp(conceptTerms, conceptLaneK(topK), filter);
+        List<List<RagSourceVO>> evidenceHits = new ArrayList<>();
+        for (KnowledgeEvidencePlanner.Requirement requirement : evidencePlan.requirements()) {
+            List<String> evidenceTerms = evidenceLaneTerms(evidencePlan, requirement);
+            if (!evidenceTerms.isEmpty()) {
+                evidenceHits.add(searchFromMySqlMvp(
+                        evidenceTerms, evidenceLaneK(topK), filter));
+            }
+        }
+        return fuseKeywordLanes(lexicalHits, conceptHits, evidenceHits, topK);
+    }
+
+    private int conceptLaneK(int topK) {
+        return Math.max(2, Math.min(8, Math.max(1, topK) / 3));
+    }
+
+    private int evidenceLaneK(int topK) {
+        return Math.max(2, Math.min(8, Math.max(1, topK) / 4));
+    }
+
+    private List<List<RagSourceVO>> searchEvidenceLanesFromEs(
+            ElasticsearchOperations esOps,
+            KnowledgeEvidencePlanner.Plan plan,
+            int topK,
+            KnowledgeSearchFilterDTO filter) {
+        List<List<RagSourceVO>> lanes = new ArrayList<>();
+        Map<String, List<RagSourceVO>> cache = new LinkedHashMap<>();
+        for (KnowledgeEvidencePlanner.Requirement requirement : plan.requirements()) {
+            List<String> evidenceTerms = evidenceLaneTerms(plan, requirement);
+            if (evidenceTerms.isEmpty()) {
+                continue;
+            }
+            String key = String.join("\u0001", evidenceTerms);
+            List<RagSourceVO> hits = cache.computeIfAbsent(key,
+                    ignored -> searchFromEs(esOps, evidenceTerms, evidenceLaneK(topK), filter));
+            lanes.add(hits);
+        }
+        return lanes;
+    }
+
+    private List<String> evidenceLaneTerms(KnowledgeEvidencePlanner.Plan plan,
+                                           KnowledgeEvidencePlanner.Requirement requirement) {
+        Set<String> concepts = new LinkedHashSet<>(requirement.searchConcepts());
+        if (Set.of("REPAIR_HISTORY", "ACCESSORY_COMPLETENESS", "PROVENANCE")
+                .contains(requirement.id())) {
+            concepts.addAll(plan.productConcepts());
+        }
+        return KnowledgeQueryConcepts.keywordExpansions(concepts);
+    }
+
+    List<RagSourceVO> fuseKeywordLanes(List<RagSourceVO> lexicalHits,
+                                       List<RagSourceVO> conceptHits,
+                                       int topK) {
+        return fuseKeywordLanes(lexicalHits, conceptHits, List.of(), topK);
+    }
+
+    List<RagSourceVO> fuseKeywordLanes(List<RagSourceVO> lexicalHits,
+                                       List<RagSourceVO> conceptHits,
+                                       List<List<RagSourceVO>> evidenceHits,
+                                       int topK) {
+        Map<String, RagSourceVO> sources = new LinkedHashMap<>();
+        Map<String, Double> scores = new HashMap<>();
+        addLaneScores(sources, scores, lexicalHits, 1.0D);
+        addLaneScores(sources, scores, conceptHits, 0.90D);
+        if (evidenceHits != null) {
+            for (List<RagSourceVO> evidenceLane : evidenceHits) {
+                addLaneScores(sources, scores, evidenceLane, 1.10D);
+            }
+        }
+        List<Map.Entry<String, Double>> ranked = scores.entrySet().stream()
+                .sorted(Map.Entry.<String, Double>comparingByValue().reversed())
+                .toList();
+        int limit = Math.max(1, topK);
+        Set<String> selectedKeys = new LinkedHashSet<>();
+        if (evidenceHits != null) {
+            int maxLaneSize = evidenceHits.stream()
+                    .filter(Objects::nonNull)
+                    .mapToInt(List::size)
+                    .max()
+                    .orElse(0);
+            for (int rank = 0; rank < maxLaneSize && selectedKeys.size() < limit; rank++) {
+                for (List<RagSourceVO> evidenceLane : evidenceHits) {
+                    if (selectedKeys.size() >= limit) {
+                        break;
+                    }
+                    if (evidenceLane == null || rank >= evidenceLane.size()) {
+                        continue;
+                    }
+                    String key = sourceKey(evidenceLane.get(rank));
+                    if (sources.containsKey(key)) {
+                        selectedKeys.add(key);
+                    }
+                }
+            }
+        }
+        for (Map.Entry<String, Double> entry : ranked) {
+            if (selectedKeys.size() >= limit) {
+                break;
+            }
+            selectedKeys.add(entry.getKey());
+        }
+        return selectedKeys.stream()
+                .sorted(Comparator.comparingDouble((String key) -> scores.getOrDefault(key, 0.0D)).reversed())
+                .map(key -> {
+                    RagSourceVO source = sources.get(key);
+                    source.setScore(scores.getOrDefault(key, 0.0D));
+                    return source;
+                })
+                .toList();
+    }
+
+    private void addLaneScores(Map<String, RagSourceVO> sources,
+                               Map<String, Double> scores,
+                               List<RagSourceVO> hits,
+                               double weight) {
+        if (hits == null) {
+            return;
+        }
+        for (int i = 0; i < hits.size(); i++) {
+            RagSourceVO source = hits.get(i);
+            String key = sourceKey(source);
+            sources.putIfAbsent(key, source);
+            scores.merge(key, weight / (60.0D + i + 1), Double::sum);
+        }
+    }
+
+    private String sourceKey(RagSourceVO source) {
+        if (source == null) {
+            return "";
+        }
+        return source.getChunkId() != null
+                ? "chunk:" + source.getChunkId()
+                : "doc:" + source.getDocId() + ":" + safe(source.getDocTitle());
     }
 
     @Override
@@ -111,18 +274,28 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
             source.setDocStatus(doc.getDocStatus());
             source.setDisabledReason(doc.getDisabledReason());
             source.setIndexVersion(doc.getIndexVersion());
+            source.setLogicalKnowledgeId(doc.getLogicalKnowledgeId());
             out.add(source);
         }
         return out;
     }
 
     private void ensureEsIndex(ElasticsearchOperations esOps) {
+        if (indexReady.get()) {
+            return;
+        }
+        synchronized (indexReady) {
+            if (indexReady.get()) {
+                return;
+            }
         IndexOperations indexOps = esOps.indexOps(KnowledgeChunkEsDoc.class);
         if (!indexOps.exists()) {
             boolean created = indexOps.create();
             log.info("[ES] create index ai_knowledge_chunk before keyword search: {}", created);
         }
         indexOps.putMapping(indexOps.createMapping(KnowledgeChunkEsDoc.class));
+            indexReady.set(true);
+        }
     }
 
     private List<RagSourceVO> searchFromMySqlMvp(List<String> terms, int topK, KnowledgeSearchFilterDTO filter) {
@@ -146,6 +319,7 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
             String docStatus = metadata == null ? "" : safe(metadata.getDocStatus());
             String disabledReason = metadata == null ? "" : safe(metadata.getDisabledReason());
             String indexVersion = metadata == null ? "" : safe(metadata.getIndexVersion());
+            String logicalKnowledgeId = metadata == null ? "" : safe(metadata.getLogicalKnowledgeId());
             String headings = metadata == null || metadata.getHeadingPath() == null
                     ? "" : String.join(" ", metadata.getHeadingPath());
             String corpus = (docTitle + " " + headings + " " + safe(row.getContent())
@@ -179,6 +353,7 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
             vo.setDocStatus(docStatus);
             vo.setDisabledReason(disabledReason);
             vo.setIndexVersion(indexVersion);
+            vo.setLogicalKnowledgeId(logicalKnowledgeId);
             scored.add(vo);
         }
 
@@ -206,7 +381,6 @@ public class KeywordSearchServiceImpl implements KeywordSearchService {
                 terms.add(bi);
             }
         }
-
         return new ArrayList<>(terms);
     }
 

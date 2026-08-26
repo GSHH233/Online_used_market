@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "dataset": "eval/datasets/ragas_rag_holdout_v4_dataset.json",
+  "split": "holdout_v4",
+  "caseCount": 30,
+  "sha256": "5b6408c1a8501b45be27403306dd8cd508f2cd3d7638ba2db1a17e6dbde0d072",
+  "implementationFreezeManifest": "eval/datasets/ragas_release_freeze_v4_manifest.json",
+  "implementationFreezeSha256": "de4a524dad458b49817c2d09dc22000cfd63598941aee92abdc8ee5dfe0ba33c",
+  "leakageValidationReport": "eval/reports/ragas_dataset_holdout_v4_validation_report.md",
+  "leakageValidationSha256": "c4338bbaeac5af602e6fadbb00995af661dcba7359820c32455d37aa449207bd",
+  "sealedAt": "2026-08-12T16:24:00+08:00",
+  "policy": {
+    "maximumRuns": 1,
+    "summaryOnly": true,
+    "llmJudgeEnabled": true,
+    "postRunTuningAllowed": false
+  },
+  "runCount": 1,
+  "firstRunAt": "2026-08-12T16:25:54+08:00",
+  "firstRunReport": "eval/reports/ragas_rag_holdout_v4_blind_report.md",
+  "firstRunReportSha256": "6b7ff8b8e763b0291129cd7abb4aede906df3ef927a64cf017a143e02f2fe499",
+  "firstRunVerdict": "RISK",
+  "firstRunMetrics": {
+    "faithfulness": 0.9250,
+    "answerRelevancy": 0.8500,
+    "llmContextPrecision": 0.8622,
+    "llmContextRecall": 0.8278,
+    "idContextPrecision": 0.6556,
+    "idContextRecall": 0.8722,
+    "caseRecallPassRate": 0.8000,
+    "endToEndP95Ms": 1699.1,
+    "retrievalP95Ms": 330.0,
+    "generationP95Ms": 1360.0,
+    "averagePromptTokens": 604.7,
+    "fallbackRate": 0.0
+  },
+  "gateFailures": [
+    "idContextRecall<0.90",
+    "caseRecallPassRate<0.90",
+    "disclosureQualityPrecision<0.45",
+    "multiHopEvidenceRecall<0.80",
+    "paraphraseRecall<0.80",
+    "mediumDifficultyRecallAndPrecisionBelowGroupGate"
+  ],
+  "postRunDatasetSha256Verified": true,
+  "postRunImplementationFreezeVerified": true,
+  "postRunTuningPerformed": false
+}

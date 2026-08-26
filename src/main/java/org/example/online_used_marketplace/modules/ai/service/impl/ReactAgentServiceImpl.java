@@ -149,7 +149,10 @@ public class ReactAgentServiceImpl implements ReactAgentService {
         if (tool.internalOnly() && !"INTERNAL".equals(mode)) {
             ToolQueryResultVO denied = deniedObservation(tool.name(), "拒绝：USER模式不允许调用内部工具");
             response.getObservations().add(denied);
-            addTrace(response, "tool_call", tool.name(), "DENIED", action.getThought(), String.valueOf(action.getInput()), denied.getSummary(), System.currentTimeMillis() - start, List.of(), Map.of("mode", mode));
+            addTrace(response, "tool_call", tool.name(), "DENIED", action.getThought(), String.valueOf(action.getInput()), denied.getSummary(), System.currentTimeMillis() - start, List.of(), Map.of(
+                    "mode", mode,
+                    "input", action.getInput() == null ? Map.of() : action.getInput()
+            ));
             return;
         }
 
@@ -158,6 +161,7 @@ public class ReactAgentServiceImpl implements ReactAgentService {
         response.getObservations().add(observation);
         Map<String, Object> metadata = new LinkedHashMap<>(execution.metadata());
         metadata.put("total", observation.getTotal());
+        metadata.put("input", action.getInput() == null ? Map.of() : action.getInput());
         addTrace(response, "tool_call", tool.name(), traceStatus(execution), action.getThought(),
                 String.valueOf(action.getInput()), observation.getSummary(), System.currentTimeMillis() - start,
                 extractDocIds(observation), metadata);

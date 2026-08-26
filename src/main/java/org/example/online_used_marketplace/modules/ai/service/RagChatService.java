@@ -12,4 +12,13 @@ import org.example.online_used_marketplace.modules.ai.vo.WsChatDoneVO;
  */
 public interface RagChatService {
     WsChatDoneVO chat(String sessionId, String question, String traceId,Integer topK, KnowledgeSearchFilterDTO filter);
+
+    /**
+     * Isolated evaluation path: executes retrieval and answer generation without
+     * writing conversation memory, knowledge-gap audit, or preference records.
+     */
+    default WsChatDoneVO chatForEvaluation(String sessionId, String question, String traceId,
+                                           Integer topK, KnowledgeSearchFilterDTO filter) {
+        return chat(sessionId, question, traceId, topK, filter);
+    }
 }

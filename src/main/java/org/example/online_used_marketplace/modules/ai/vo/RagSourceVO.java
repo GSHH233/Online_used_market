@@ -21,4 +21,8 @@ public class RagSourceVO {
     private String docStatus;
     private String disabledReason;
     private String indexVersion;
+    private String logicalKnowledgeId;
+    private Double retrievalScore;
+    private Double rerankScore;
+    private String rerankReason;
 }

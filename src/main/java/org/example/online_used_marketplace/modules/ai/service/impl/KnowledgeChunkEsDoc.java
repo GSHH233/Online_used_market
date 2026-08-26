@@ -57,4 +57,7 @@ public class KnowledgeChunkEsDoc {
 
     @Field(type = FieldType.Keyword)
     private String indexVersion;
+
+    @Field(type = FieldType.Keyword)
+    private String logicalKnowledgeId;
 }

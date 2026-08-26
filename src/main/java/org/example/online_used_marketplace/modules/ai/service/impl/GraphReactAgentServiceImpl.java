@@ -341,7 +341,10 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
             node.setSummary(denied.getSummary());
             return new NodeResult(node.getNodeId(), "tool_call", tool.name(), "DENIED", node.getThought(),
                     String.valueOf(node.getInput()), denied.getSummary(), System.currentTimeMillis() - start,
-                    List.of(), Map.of("mode", mode), denied);
+                    List.of(), Map.of(
+                            "mode", mode,
+                            "input", node.getInput() == null ? Map.of() : node.getInput()
+                    ), denied);
         }
         ToolExecutionResult execution = toolExecutionHarness.execute(tool, node.getInput() == null ? Collections.emptyMap() : node.getInput(), mode);
         ToolQueryResultVO observation = execution.getObservation();
@@ -349,6 +352,7 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
         node.setSummary(observation.getSummary());
         Map<String, Object> metadata = new LinkedHashMap<>(execution.metadata());
         metadata.put("total", observation.getTotal());
+        metadata.put("input", node.getInput() == null ? Map.of() : node.getInput());
         return new NodeResult(node.getNodeId(), "tool_call", tool.name(), traceStatus(execution), node.getThought(),
                 String.valueOf(node.getInput()), observation.getSummary(), System.currentTimeMillis() - start,
                 extractDocIds(observation), metadata, observation);

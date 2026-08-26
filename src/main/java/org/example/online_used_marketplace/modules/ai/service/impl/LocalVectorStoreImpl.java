@@ -80,6 +80,7 @@ public class LocalVectorStoreImpl implements VectorStore {
             source.setDocStatus(meta != null ? meta.getDocStatus() : null);
             source.setDisabledReason(meta != null ? meta.getDisabledReason() : null);
             source.setIndexVersion(meta != null ? meta.getIndexVersion() : null);
+            source.setLogicalKnowledgeId(meta != null ? meta.getLogicalKnowledgeId() : null);
             candidates.add(source);
         }
 

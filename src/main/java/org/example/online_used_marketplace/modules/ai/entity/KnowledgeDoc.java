@@ -47,6 +47,31 @@ public class KnowledgeDoc {
 
     private String activeIndexVersion;
 
+    private String logicalKnowledgeId;
+
+    private String contentHash;
+
+    private Integer revision;
+
+    private Long supersedesDocId;
+
+    private Boolean lifecycleManaged;
+
+    private LocalDateTime publishedAt;
+
+    /** Time at which an ACTIVE revision was superseded. */
+    private LocalDateTime retiredAt;
+
+    /** Earliest time at which the retired revision's index artifacts may be deleted. */
+    private LocalDateTime retentionUntil;
+
+    /** PENDING/RUNNING/COMPLETED/FAILED for delayed index artifact cleanup. */
+    private String cleanupStatus;
+
+    private String cleanupError;
+
+    private LocalDateTime cleanedAt;
+
     /**
      * 文档原文
      */
@@ -71,7 +96,7 @@ public class KnowledgeDoc {
     private String disabledReason;
 
     /**
-     * 状态：DRAFT/ACTIVE/DISABLED
+     * 状态：DRAFT/ACTIVE/RETIRED/DISABLED
      */
     private String status;
 

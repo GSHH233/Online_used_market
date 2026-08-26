@@ -14,6 +14,7 @@ import org.example.online_used_marketplace.modules.ai.service.PublishAssistFeedb
 import org.example.online_used_marketplace.modules.ai.service.ReplanService;
 import org.example.online_used_marketplace.modules.ai.vo.AssistStepTraceVO;
 import org.example.online_used_marketplace.modules.ai.vo.ProductPublishAssistVO;
+import org.example.online_used_marketplace.modules.ai.vo.PublishAssistRetrievalVO;
 import org.springframework.beans.BeanUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -67,12 +68,17 @@ public class AiPublishAssistServiceImpl implements AiPublishAssistService {
 
         ProductPublishAssistVO firstResult = null;
         ProductPublishAssistVO finalResult = null;
+        List<PublishAssistRetrievalVO> retrievals = new ArrayList<>();
 
         for (int round = 1; round <= maxRounds; round++) {
             appendRoundPlan(trace, round);
 
             try {
                 ProductPublishAssistVO currentResult = executeOnce(currentRequest, trace, round);
+                if (currentResult.getRetrievals() != null) {
+                    retrievals.addAll(currentResult.getRetrievals());
+                }
+                currentResult.setRetrievals(new ArrayList<>(retrievals));
 
                 if (round == 1) {
                     firstResult = currentResult;
@@ -139,6 +145,7 @@ public class AiPublishAssistServiceImpl implements AiPublishAssistService {
         vo.setRiskEvidence(result.getRiskEvidence());
         vo.setTrace(trace);
         vo.setSources(result.getSources());
+        vo.setRetrievals(result.getRetrievals());
         vo.setGenerationMode(result.getGenerationMode());
         vo.setFallbackUsed(result.getFallbackUsed());
         vo.setFallbackReason(result.getFallbackReason());

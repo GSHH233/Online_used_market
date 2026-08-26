@@ -15,8 +15,8 @@ public class TokenGovernanceProperties {
     private int recentMemoryLimit = 500;
     private int defaultInputTokens = 4_000;
     private int defaultOutputTokens = 500;
-    private int ragChatInputTokens = 6_000;
-    private int ragChatOutputTokens = 600;
+    private int ragChatInputTokens = 4_000;
+    private int ragChatOutputTokens = 320;
     private int agentFinalInputTokens = 4_000;
     private int agentFinalOutputTokens = 400;
     private int agentPlannerInputTokens = 2_000;

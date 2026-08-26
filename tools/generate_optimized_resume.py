@@ -1,7 +1,6 @@
 ﻿# -*- coding: utf-8 -*-
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from docx import Document
@@ -12,9 +11,9 @@ from docx.oxml.ns import qn
 from docx.shared import Inches, Pt, RGBColor
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(r"F:\Online_used_marketplace")
 INPUT = ROOT / "resume_input.docx"
-OUTPUT = Path(os.getenv("RESUME_OUTPUT", ROOT / "output" / "resume_ai_optimized.docx"))
+OUTPUT = Path(r"F:\大三下\面试\个人简历_AI应用开发优化版_v2.docx")
 
 
 def set_run_font(run, size: float, bold: bool = False, color: RGBColor | None = None) -> None:

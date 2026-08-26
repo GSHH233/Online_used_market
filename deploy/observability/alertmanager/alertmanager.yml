@@ -1,0 +1,23 @@
+global:
+  resolve_timeout: 2m
+
+route:
+  receiver: used-marketplace-aiops
+  group_by:
+    - alertname
+    - service
+    - environment
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 5m
+
+receivers:
+  - name: used-marketplace-aiops
+    webhook_configs:
+      - url: http://192.168.152.1:8080/api/ai/aiops/alerts/alertmanager
+        send_resolved: true
+        max_alerts: 100
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /etc/alertmanager/secrets/aiops_webhook_token

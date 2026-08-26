@@ -45,6 +45,7 @@ public class SecurityConfig {
                                 "/api/auth/sms/send",
                                 "/api/auth/sms/login",
                                 "/api/files/upload",
+                                "/api/ai/aiops/alerts/alertmanager",
                                 "/ws/**",
                                 "/actuator/health",
                                 "/actuator/info",

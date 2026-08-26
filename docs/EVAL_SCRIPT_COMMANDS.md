@@ -3,7 +3,7 @@
 本文档整理项目当前主要评测脚本的 PowerShell 执行方式。建议在项目根目录执行：
 
 ```powershell
-cd <project-root>
+cd F:\Online_used_marketplace
 New-Item -ItemType Directory -Force eval\reports | Out-Null
 ```
 
@@ -19,6 +19,8 @@ $USER_TOKEN = "<USER_JWT>"
 $INTERNAL_TOKEN = "<INTERNAL_JWT>"
 
 $ADMIN_TOKEN = "<ADMIN_JWT>"
+
+$AIOPS_WEBHOOK_TOKEN = "<AIOPS_WEBHOOK_SECRET>"
 
 # publish_feedback_eval.py 的越权用例需要另一个普通用户 token。
 $OTHER_USER_TOKEN = "替换为另一个 USER 角色 JWT"
@@ -64,6 +66,34 @@ ReAct Agent 评测：
 python tools/react_agent_eval.py --base-url $BASE_URL --bearer-token $INTERNAL_TOKEN --dataset eval/datasets/react_agent_eval_dataset.json --out eval/reports/react_agent_eval_report.md
 ```
 
+DeepEval Agent 通用指标评测：
+
+```powershell
+python -m venv .venv-deepeval
+.\.venv-deepeval\Scripts\python.exe -m pip install -r requirements-eval.txt
+$env:DEEPEVAL_TELEMETRY_OPT_OUT = "1"
+.\.venv-deepeval\Scripts\python.exe tools/deepeval_agent_eval.py --base-url $BASE_URL --internal-bearer-token $INTERNAL_TOKEN --user-bearer-token $USER_TOKEN --admin-bearer-token $ADMIN_TOKEN
+```
+
+默认模式由 DeepEval 计算工具正确性、参数正确性、调用顺序和最小权限指标，不调用 Judge 模型，也不消耗模型 Token。脚本同时保留路由策略、HTTP 权限、Trace 完整性、Observation、DAG 依赖和步数预算等项目级确定性断言。
+
+只验证 DeepEval 安装与适配层时执行：
+
+```powershell
+.\.venv-deepeval\Scripts\python.exe tools/deepeval_agent_eval.py --self-test
+```
+
+需要额外启用 LLM-as-Judge 任务完成度时，使用独立 Judge 模型凭证：
+
+```powershell
+$env:DEEPEVAL_JUDGE_MODEL = "替换为兼容模型名"
+$env:DEEPEVAL_JUDGE_API_KEY = "替换为Judge模型Key"
+$env:DEEPEVAL_JUDGE_BASE_URL = "替换为OpenAI兼容地址"
+.\.venv-deepeval\Scripts\python.exe tools/deepeval_agent_eval.py --base-url $BASE_URL --internal-bearer-token $INTERNAL_TOKEN --user-bearer-token $USER_TOKEN --enable-llm-judge
+```
+
+Java Agent 的 Trace 目前由项目自身持久化，默认评测不会把事后转换的数据伪装成 DeepEval 原生运行时 Trace。因此 DeepEval 的 `TaskCompletionMetric`、`PlanAdherenceMetric` 等原生 Trace 指标暂不作为 CI 门禁；待后续通过 OpenTelemetry/OpenInference 桥接真实 Span 后再启用。
+
 ## 4. AIOps
 
 AIOps 工具链评测：
@@ -83,6 +113,39 @@ AIOps 修复闭环评测：
 ```powershell
 python tools/aiops_remediation_loop_eval.py --base-url $BASE_URL --doc-id 19 --user-bearer-token $USER_TOKEN --internal-bearer-token $INTERNAL_TOKEN --admin-bearer-token $ADMIN_TOKEN --output eval/reports/aiops_remediation_loop_eval_report.md
 ```
+
+AIOps 持续发现与多 Agent 受控修复评测（启动后端前需显式启用测试开关）：
+
+```powershell
+$env:AIOPS_ALERTMANAGER_ENABLED = "true"
+$env:AIOPS_ALERT_WEBHOOK_TOKEN = $AIOPS_WEBHOOK_TOKEN
+$env:AIOPS_DEMO_ENABLED = "true"
+
+python tools/aiops_continuous_detection_eval.py --base-url $BASE_URL --webhook-token $AIOPS_WEBHOOK_TOKEN --user-bearer-token $USER_TOKEN --internal-bearer-token $INTERNAL_TOKEN --admin-bearer-token $ADMIN_TOKEN --dataset eval/datasets/aiops_continuous_detection_eval_dataset.json --output eval/reports/aiops_continuous_detection_eval_report.md
+```
+
+当前数据集为 27 条状态化 E2E 用例，覆盖 webhook 验签、幂等/聚合、异步诊断、证据追踪、Prompt Injection 隔离、三级权限、审批执行、独立验证、监控侧恢复通知与 MTTD/MTTR。
+
+隔离 Docker Runbook 默认关闭时的权限/参数边界评测：
+
+```powershell
+python tools/docker_runbook_eval.py --base-url $BASE_URL --user-bearer-token $USER_TOKEN --internal-bearer-token $INTERNAL_TOKEN --admin-bearer-token $ADMIN_TOKEN
+```
+
+完成 `deploy/runbook/README.md` 的 VM helper 和 SSH 公钥配置、并在启动后端前显式启用后，执行真实容器重启与健康检查：
+
+```powershell
+$env:AI_AIOPS_DOCKER_RUNBOOK_ENABLED = "true"
+$env:AI_AIOPS_DOCKER_RUNBOOK_TRANSPORT = "ssh-helper"
+$env:AI_AIOPS_DOCKER_RUNBOOK_SSH_HOST = "192.168.152.128"
+$env:AI_AIOPS_DOCKER_RUNBOOK_SSH_USER = "gshhh"
+$env:AI_AIOPS_DOCKER_RUNBOOK_SSH_KEY_PATH = "$HOME\.ssh\id_ed25519"
+$env:AI_AIOPS_DOCKER_RUNBOOK_HEALTH_URL = "http://192.168.152.128:18080/"
+
+python tools/docker_runbook_eval.py --base-url $BASE_URL --user-bearer-token $USER_TOKEN --internal-bearer-token $INTERNAL_TOKEN --admin-bearer-token $ADMIN_TOKEN --expect-enabled --live-execute
+```
+
+脚本只传逻辑 `targetId=marketplace-demo-web`。容器名、回滚镜像、端口和 helper 路径来自受信任配置，不能由 API 覆盖。
 
 ## 5. Tool Execution Harness
 
@@ -257,6 +320,85 @@ Invoke-RestMethod -Headers @{Authorization="Bearer $INTERNAL_TOKEN"} "http://loc
 Invoke-RestMethod -Headers @{Authorization="Bearer $INTERNAL_TOKEN"} "http://localhost:8080/api/ai/token-governance/metrics?recentLimit=100"
 ```
 
+## 16. RAGAS RAG 评测
+
+RAGAS 使用独立的 64 位 Python 环境，避免污染现有 DeepEval 环境。Windows 32 位 Python 无法安装 SciPy/Scikit-Network 依赖。
+
+```powershell
+C:\Users\Admin\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m venv .venv-ragas64
+.\.venv-ragas64\Scripts\python.exe -m pip install -r requirements-ragas.txt
+```
+
+先运行不消耗 judge Token 的自测、数据集校验和分层确定性评测：
+
+```powershell
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py --self-test
+.\.venv-ragas64\Scripts\python.exe tools\ragas_dataset_validate.py
+
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py `
+  --base-url http://localhost:8080 `
+  --bearer-token $USER_TOKEN `
+  --dataset eval/datasets/ragas_rag_smoke_dataset.json `
+  --catalog eval/datasets/ragas_knowledge_catalog.json `
+  --out eval/reports/ragas_rag_smoke_report.md
+
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py `
+  --base-url http://localhost:8080 `
+  --bearer-token $USER_TOKEN `
+  --dataset eval/datasets/ragas_rag_development_v2_dataset.json `
+  --catalog eval/datasets/ragas_knowledge_catalog.json `
+  --out eval/reports/ragas_rag_development_v2_report.md `
+  --concurrency 2
+
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py `
+  --base-url http://localhost:8080 `
+  --bearer-token $USER_TOKEN `
+  --dataset eval/datasets/ragas_rag_regression_dataset.json `
+  --catalog eval/datasets/ragas_knowledge_catalog.json `
+  --out eval/reports/ragas_rag_regression_report.md `
+  --concurrency 2
+
+# 仅在 Regression 门禁通过后运行；不输出保留集逐例细节。
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py `
+  --base-url http://localhost:8080 `
+  --bearer-token $USER_TOKEN `
+  --dataset eval/datasets/ragas_rag_holdout_dataset.json `
+  --catalog eval/datasets/ragas_knowledge_catalog.json `
+  --out eval/reports/ragas_rag_holdout_report.md `
+  --concurrency 2 `
+  --summary-only
+
+# v2 只允许在 Development v2 与 Regression 都通过后盲测一次。
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py `
+  --base-url http://localhost:8080 `
+  --bearer-token $USER_TOKEN `
+  --dataset eval/datasets/ragas_rag_holdout_v2_dataset.json `
+  --catalog eval/datasets/ragas_knowledge_catalog.json `
+  --out eval/reports/ragas_rag_holdout_v2_report.md `
+  --concurrency 2 `
+  --summary-only
+```
+
+默认指标为 `IDBasedContextPrecision/Recall` 和 `NonLLMContextPrecision/Recall`，并校验分组指标、Bootstrap 95% CI、Retrieval/E2E P95、技术错误以及只读评测模式覆盖率。Gold 使用逻辑知识 ID，避免 reindex 后物理 `docId` 变化污染结果。它们评估文档对齐和检索上下文，不评估自然语言答案是否忠实。
+
+固定执行顺序为 `Smoke/Development -> Regression -> 新 Holdout`。Holdout 首次失败后应只依据聚合失败类型构造下一版开发集，并重新构造未见 Holdout；不要查看逐例输出后反复调参直到通过。
+
+有独立 judge 凭证时再启用生成质量指标：
+
+```powershell
+$env:RAGAS_JUDGE_API_KEY = '<JUDGE_API_KEY>'
+$env:RAGAS_JUDGE_BASE_URL = 'https://api.openai.com/v1'
+$env:RAGAS_JUDGE_MODEL = 'gpt-4o-mini'
+$env:RAGAS_JUDGE_EMBEDDING_MODEL = 'text-embedding-3-small'
+
+.\.venv-ragas64\Scripts\python.exe tools\ragas_rag_eval.py `
+  --base-url http://localhost:8080 `
+  --bearer-token $USER_TOKEN `
+  --enable-llm-judge
+```
+
+启用后增加 `Faithfulness`、LLM Context Precision/Recall 和 Answer Relevancy。judge 模型应与被测 RAG Chat 模型分离；报告必须记录 judge 模型和数据集版本。RAGAS 不替代现有 `retrieval_eval.py` 的 Recall@K、MRR、nDCG 等确定性排序指标。
+
 ## 13. 常见错误
 
 ### PowerShell 不能使用 CMD 的 `^`
@@ -307,3 +449,31 @@ Invoke-RestMethod http://localhost:8080/actuator/health
 ```
 
 再确认依赖服务是否启动：MySQL、Redis、RabbitMQ、Elasticsearch、Milvus、PostgreSQL、Prometheus。
+
+## 17. 知识生命周期验收
+
+首次上线先观察 legacy 迁移量：
+
+```powershell
+python tools/knowledge_lifecycle_eval.py --base-url http://localhost:8080 --internal-bearer-token $INTERNAL_TOKEN
+```
+
+全部旧文档完成受控 reindex 后执行严格验收：
+
+```powershell
+python tools/knowledge_lifecycle_eval.py --base-url http://localhost:8080 --internal-bearer-token $INTERNAL_TOKEN --strict-no-legacy
+```
+
+详细迁移与回滚步骤见 `docs/RAG_RETRIEVAL_PRECISION_OPTIMIZATION.md`。
+
+新版发布、保留期过滤与受控回滚端到端验收：
+
+```powershell
+python tools/knowledge_version_lifecycle_eval.py `
+  --base-url $BASE_URL `
+  --internal-bearer-token $INTERNAL_TOKEN `
+  --admin-bearer-token $ADMIN_TOKEN `
+  --out eval/reports/knowledge_version_lifecycle_eval_report.md
+```
+
+通过标准：四条用例全部通过，依次验证文档 `DRAFT`、索引任务/分块 `STAGING`、验证后 `ACTIVE`；旧版本应为 `RETIRED` 且不可检索，7 天保留期内索引块仍存在；回滚只能由 ADMIN 审批执行，并在版本切换后再次通过一致性验证。过期物理清理由后端定时任务处理，测试环境不要把保留期设为 0 天。

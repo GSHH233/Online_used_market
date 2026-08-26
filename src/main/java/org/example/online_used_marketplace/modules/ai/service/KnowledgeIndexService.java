@@ -23,6 +23,9 @@ public interface KnowledgeIndexService {
 
     KnowledgeReindexTriggerVO repairDoc(Long docId, Boolean forceReindex, Boolean async);
 
+    /** Rebuild and activate a retained revision through the controlled-operation path. */
+    KnowledgeReindexTriggerVO rollbackRevision(Long docId, Boolean async);
+
     KnowledgeRepairBatchResponseVO repairBatch(KnowledgeRepairBatchRequestDTO dto);
 
     KnowledgeIndexTaskVO getTask(Long taskId);

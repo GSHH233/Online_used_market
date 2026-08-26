@@ -50,9 +50,15 @@ public class AiopsEventServiceImpl implements AiopsEventService {
         }
         String eventKey = StringUtils.hasText(dto.getEventKey()) ? dto.getEventKey().trim() : "manual-" + UUID.randomUUID();
         Long id = jdbcTemplate.queryForObject("""
-                INSERT INTO aiops_event(event_key,trace_id,severity,source,title,summary,status,last_seen_at,metadata_json)
-                VALUES (?,?,?,?,?,?, 'OPEN', CURRENT_TIMESTAMP, ?::jsonb)
+                INSERT INTO aiops_event(event_key,fingerprint,correlation_key,occurrence_count,trace_id,severity,source,
+                                        title,summary,status,source_started_at,source_ended_at,diagnosis_status,
+                                        diagnosis_json,operation_id,metadata_json,last_seen_at)
+                VALUES (?,?,?,?,?,?,?,?,?,'OPEN',?,?,COALESCE(NULLIF(?,''),'PENDING'),
+                        COALESCE(NULLIF(?, '')::jsonb,'{}'::jsonb),?,?::jsonb,CURRENT_TIMESTAMP)
                 ON CONFLICT(event_key) DO UPDATE SET
+                    fingerprint=EXCLUDED.fingerprint,
+                    correlation_key=EXCLUDED.correlation_key,
+                    occurrence_count=GREATEST(aiops_event.occurrence_count, EXCLUDED.occurrence_count),
                     trace_id=EXCLUDED.trace_id,
                     severity=EXCLUDED.severity,
                     source=EXCLUDED.source,
@@ -69,17 +75,30 @@ public class AiopsEventServiceImpl implements AiopsEventService {
                     resolution_type='',
                     manual_required=FALSE,
                     escalation_reason='',
+                    source_started_at=COALESCE(EXCLUDED.source_started_at, aiops_event.source_started_at),
+                    source_ended_at=EXCLUDED.source_ended_at,
+                    diagnosis_status=EXCLUDED.diagnosis_status,
+                    diagnosis_json=EXCLUDED.diagnosis_json,
+                    operation_id=EXCLUDED.operation_id,
                     last_seen_at=CURRENT_TIMESTAMP,
                     metadata_json=EXCLUDED.metadata_json,
                     updated_time=CURRENT_TIMESTAMP
                 RETURNING id
                 """, Long.class,
                 eventKey,
+                safe(dto.getFingerprint(), 64),
+                safe(dto.getCorrelationKey(), 160),
+                dto.getOccurrenceCount() == null ? 1 : Math.max(1, dto.getOccurrenceCount()),
                 safe(dto.getTraceId(), 128),
                 normalizeSeverity(dto.getSeverity()),
                 safe(dto.getSource(), 64),
                 safe(dto.getTitle(), 255),
                 safe(dto.getSummary(), 4000),
+                dto.getSourceStartedAt() == null ? null : Timestamp.valueOf(dto.getSourceStartedAt()),
+                dto.getSourceEndedAt() == null ? null : Timestamp.valueOf(dto.getSourceEndedAt()),
+                safe(dto.getDiagnosisStatus(), 32),
+                safe(dto.getDiagnosisJson(), 10000),
+                dto.getOperationId(),
                 writeJson(dto.getMetadata()));
         if (id != null && StringUtils.hasText(dto.getSuggestion())) {
             insertLifecycleAction(id, "SUGGESTION", "SUGGESTED", dto.getSuggestion(), Map.of());
@@ -193,13 +212,16 @@ public class AiopsEventServiceImpl implements AiopsEventService {
     @Override
     public AiopsEventVO markResolved(Long eventId, String resolutionType, String summary) {
         requireEventId(eventId);
-        String type = "MANUAL_OVERRIDE".equalsIgnoreCase(resolutionType) ? "MANUAL_OVERRIDE" : "AUTO_VERIFIED";
+        String type = "MANUAL_OVERRIDE".equalsIgnoreCase(resolutionType)
+                ? "MANUAL_OVERRIDE"
+                : "SOURCE_RECOVERED".equalsIgnoreCase(resolutionType)
+                ? "SOURCE_RECOVERED" : "AUTO_VERIFIED";
         int updated = jdbcTemplate.update("""
                 UPDATE aiops_event
                 SET status='RESOLVED', resolved_at=CURRENT_TIMESTAMP, resolution_type=?,
                     manual_required=FALSE, escalation_reason='',
                     summary=COALESCE(NULLIF(?, ''), summary), updated_time=CURRENT_TIMESTAMP
-                WHERE id=? AND status IN ('EXECUTING','VERIFYING','ESCALATED','APPROVED')
+                WHERE id=? AND status IN ('OPEN','DIAGNOSED','EXECUTING','VERIFYING','ESCALATED','APPROVED')
                 """, type, safe(summary, 4000), eventId);
         if (updated == 0) {
             throw new BusinessException(ResultCode.CONFLICT, "事件不在可解决状态");
@@ -274,6 +296,37 @@ public class AiopsEventServiceImpl implements AiopsEventService {
                   percentile_cont(0.95) WITHIN GROUP (
                     ORDER BY EXTRACT(EPOCH FROM (resolved_at-first_seen_at))*1000
                   ) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL) AS p95_mttr_ms
+                  ,COUNT(*) FILTER (WHERE source_started_at IS NOT NULL) AS mttd_sample_count
+                  ,AVG(EXTRACT(EPOCH FROM (first_seen_at-source_started_at))*1000)
+                    FILTER (WHERE source_started_at IS NOT NULL) AS average_mttd_ms
+                  ,percentile_cont(0.50) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (first_seen_at-source_started_at))*1000
+                  ) FILTER (WHERE source_started_at IS NOT NULL) AS p50_mttd_ms
+                  ,percentile_cont(0.95) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (first_seen_at-source_started_at))*1000
+                  ) FILTER (WHERE source_started_at IS NOT NULL) AS p95_mttd_ms
+                  ,COUNT(*) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL
+                                    AND resolution_type IN ('AUTO_VERIFIED','SOURCE_RECOVERED')) AS automation_repair_count
+                  ,AVG(EXTRACT(EPOCH FROM (resolved_at-first_seen_at))*1000)
+                    FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL
+                            AND resolution_type IN ('AUTO_VERIFIED','SOURCE_RECOVERED')) AS average_automation_repair_ms
+                  ,percentile_cont(0.50) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (resolved_at-first_seen_at))*1000
+                  ) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL
+                            AND resolution_type IN ('AUTO_VERIFIED','SOURCE_RECOVERED')) AS p50_automation_repair_ms
+                  ,percentile_cont(0.95) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (resolved_at-first_seen_at))*1000
+                  ) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL
+                            AND resolution_type IN ('AUTO_VERIFIED','SOURCE_RECOVERED')) AS p95_automation_repair_ms
+                  ,COUNT(*) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL AND source_started_at IS NOT NULL) AS full_mttr_count
+                  ,AVG(EXTRACT(EPOCH FROM (resolved_at-source_started_at))*1000)
+                    FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL AND source_started_at IS NOT NULL) AS average_full_mttr_ms
+                  ,percentile_cont(0.50) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (resolved_at-source_started_at))*1000
+                  ) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL AND source_started_at IS NOT NULL) AS p50_full_mttr_ms
+                  ,percentile_cont(0.95) WITHIN GROUP (
+                    ORDER BY EXTRACT(EPOCH FROM (resolved_at-source_started_at))*1000
+                  ) FILTER (WHERE status='RESOLVED' AND resolved_at IS NOT NULL AND source_started_at IS NOT NULL) AS p95_full_mttr_ms
                 FROM aiops_event
                 WHERE first_seen_at>=? AND first_seen_at<?
                 """ + sourceFilter, args.toArray());
@@ -285,7 +338,7 @@ public class AiopsEventServiceImpl implements AiopsEventService {
         Long executedCount = jdbcTemplate.queryForObject("""
                 SELECT COUNT(DISTINCT e.id)
                 FROM aiops_event e
-                JOIN aiops_action a ON a.event_id=e.id
+                JOIN aiops_action a ON a.event_id=COALESCE(e.operation_id,e.id)
                 WHERE e.first_seen_at>=? AND e.first_seen_at<?
                   AND a.executed=TRUE AND a.action_type NOT IN ('SUGGESTION','APPROVAL')
                 """ + (StringUtils.hasText(source) ? " AND e.source=?" : ""), Long.class, executedArgs.toArray());
@@ -308,14 +361,27 @@ public class AiopsEventServiceImpl implements AiopsEventService {
         vo.setP95MttrMs(doubleValue(row.get("p95_mttr_ms")));
         vo.setAutoRepairSuccessRate(executed == 0 ? null : autoResolved / (double) executed);
         vo.setEscalationRate(executed == 0 ? null : escalated / (double) executed);
+        vo.setMttdSampleCount(longValue(row.get("mttd_sample_count")));
+        vo.setAverageMttdMs(doubleValue(row.get("average_mttd_ms")));
+        vo.setP50MttdMs(doubleValue(row.get("p50_mttd_ms")));
+        vo.setP95MttdMs(doubleValue(row.get("p95_mttd_ms")));
+        vo.setAutomationRepairCount(longValue(row.get("automation_repair_count")));
+        vo.setAverageAutomationRepairMs(doubleValue(row.get("average_automation_repair_ms")));
+        vo.setP50AutomationRepairMs(doubleValue(row.get("p50_automation_repair_ms")));
+        vo.setP95AutomationRepairMs(doubleValue(row.get("p95_automation_repair_ms")));
+        vo.setFullMttrCount(longValue(row.get("full_mttr_count")));
+        vo.setAverageFullMttrMs(doubleValue(row.get("average_full_mttr_ms")));
+        vo.setP50FullMttrMs(doubleValue(row.get("p50_full_mttr_ms")));
+        vo.setP95FullMttrMs(doubleValue(row.get("p95_full_mttr_ms")));
         return vo;
     }
 
     private String eventSelect() {
         return """
-                SELECT id,event_key,trace_id,severity,source,title,summary,status,metadata_json::text,
-                       first_seen_at,last_seen_at,approved_by,approved_at,resolved_at,resolution_type,
-                       manual_required,escalation_reason
+                SELECT id,event_key,fingerprint,correlation_key,occurrence_count,trace_id,severity,source,title,summary,
+                       status,metadata_json::text,first_seen_at,last_seen_at,approved_by,approved_at,resolved_at,
+                       resolution_type,manual_required,escalation_reason,source_started_at,source_ended_at,
+                       diagnosis_status,diagnosis_json::text,operation_id
                 FROM aiops_event
                 """;
     }
@@ -324,6 +390,9 @@ public class AiopsEventServiceImpl implements AiopsEventService {
         AiopsEventVO vo = new AiopsEventVO();
         vo.setId(rs.getLong("id"));
         vo.setEventKey(rs.getString("event_key"));
+        vo.setFingerprint(rs.getString("fingerprint"));
+        vo.setCorrelationKey(rs.getString("correlation_key"));
+        vo.setOccurrenceCount(rs.getInt("occurrence_count"));
         vo.setTraceId(rs.getString("trace_id"));
         vo.setSeverity(rs.getString("severity"));
         vo.setSource(rs.getString("source"));
@@ -340,6 +409,12 @@ public class AiopsEventServiceImpl implements AiopsEventService {
         vo.setResolutionType(rs.getString("resolution_type"));
         vo.setManualRequired(rs.getBoolean("manual_required"));
         vo.setEscalationReason(rs.getString("escalation_reason"));
+        vo.setSourceStartedAt(toLocalDateTime(rs.getTimestamp("source_started_at")));
+        vo.setSourceEndedAt(toLocalDateTime(rs.getTimestamp("source_ended_at")));
+        vo.setDiagnosisStatus(rs.getString("diagnosis_status"));
+        vo.setDiagnosisJson(rs.getString("diagnosis_json"));
+        long operationId = rs.getLong("operation_id");
+        vo.setOperationId(rs.wasNull() ? null : operationId);
         return vo;
     }
 

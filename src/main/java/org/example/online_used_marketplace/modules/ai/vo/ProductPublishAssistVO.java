@@ -52,6 +52,11 @@ public class ProductPublishAssistVO {
     private List<RagSourceVO> sources;
 
     /**
+     * 发布风险规则检索的每轮摘要，仅暴露检索链路所需的可观测字段。
+     */
+    private List<PublishAssistRetrievalVO> retrievals;
+
+    /**
      * LLM / RULE_GUARDRAIL / RULE_FALLBACK
      */
     private String generationMode;

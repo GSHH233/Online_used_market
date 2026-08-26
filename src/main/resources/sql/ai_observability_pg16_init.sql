@@ -136,6 +136,9 @@ CREATE INDEX IF NOT EXISTS idx_ai_eval_case_run
 CREATE TABLE IF NOT EXISTS aiops_event (
     id BIGSERIAL PRIMARY KEY,
     event_key VARCHAR(160) NOT NULL,
+    fingerprint VARCHAR(64) NOT NULL DEFAULT '',
+    correlation_key VARCHAR(160) NOT NULL DEFAULT '',
+    occurrence_count INTEGER NOT NULL DEFAULT 1,
     trace_id VARCHAR(128) NOT NULL DEFAULT '',
     severity VARCHAR(32) NOT NULL DEFAULT 'INFO',
     source VARCHAR(64) NOT NULL DEFAULT '',
@@ -148,6 +151,11 @@ CREATE TABLE IF NOT EXISTS aiops_event (
     resolution_type VARCHAR(32) NOT NULL DEFAULT '',
     manual_required BOOLEAN NOT NULL DEFAULT FALSE,
     escalation_reason TEXT NOT NULL DEFAULT '',
+    source_started_at TIMESTAMP,
+    source_ended_at TIMESTAMP,
+    diagnosis_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+    diagnosis_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    operation_id BIGINT,
     first_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
@@ -187,6 +195,14 @@ ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP;
 ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS resolution_type VARCHAR(32) NOT NULL DEFAULT '';
 ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS manual_required BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS escalation_reason TEXT NOT NULL DEFAULT '';
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS correlation_key VARCHAR(160) NOT NULL DEFAULT '';
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS occurrence_count INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS source_started_at TIMESTAMP;
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS source_ended_at TIMESTAMP;
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS diagnosis_status VARCHAR(32) NOT NULL DEFAULT 'PENDING';
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS diagnosis_json JSONB NOT NULL DEFAULT '{}'::jsonb;
+ALTER TABLE aiops_event ADD COLUMN IF NOT EXISTS operation_id BIGINT;
 
 ALTER TABLE aiops_action ADD COLUMN IF NOT EXISTS trace_id VARCHAR(128) NOT NULL DEFAULT '';
 ALTER TABLE aiops_action ADD COLUMN IF NOT EXISTS idempotency_key VARCHAR(160) NOT NULL DEFAULT '';
@@ -200,6 +216,56 @@ CREATE UNIQUE INDEX IF NOT EXISTS uk_aiops_action_idempotency
 CREATE INDEX IF NOT EXISTS idx_aiops_event_resolved
     ON aiops_event (resolved_at DESC)
     WHERE resolved_at IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_aiops_event_correlation
+    ON aiops_event (correlation_key, last_seen_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aiops_event_fingerprint
+    ON aiops_event (fingerprint)
+    WHERE fingerprint <> '';
+CREATE UNIQUE INDEX IF NOT EXISTS uk_aiops_event_fingerprint
+    ON aiops_event (fingerprint)
+    WHERE fingerprint <> '';
+
+CREATE TABLE IF NOT EXISTS aiops_alert_delivery (
+    id BIGSERIAL PRIMARY KEY,
+    delivery_key VARCHAR(160) NOT NULL,
+    payload_hash VARCHAR(64) NOT NULL,
+    group_key VARCHAR(160) NOT NULL DEFAULT '',
+    status VARCHAR(32) NOT NULL DEFAULT 'FIRING',
+    alert_count INTEGER NOT NULL DEFAULT 0,
+    processing_status VARCHAR(32) NOT NULL DEFAULT 'RECEIVED',
+    error_msg TEXT NOT NULL DEFAULT '',
+    trace_id VARCHAR(128) NOT NULL DEFAULT '',
+    event_ids_json JSONB NOT NULL DEFAULT '[]'::jsonb,
+    payload_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(delivery_key),
+    UNIQUE(payload_hash)
+);
+
+CREATE INDEX IF NOT EXISTS idx_aiops_alert_delivery_status
+    ON aiops_alert_delivery (processing_status, created_time DESC);
+CREATE INDEX IF NOT EXISTS idx_aiops_alert_delivery_group
+    ON aiops_alert_delivery (group_key, created_time DESC);
+
+CREATE TABLE IF NOT EXISTS aiops_change_event (
+    id BIGSERIAL PRIMARY KEY,
+    service VARCHAR(128) NOT NULL,
+    environment VARCHAR(64) NOT NULL DEFAULT '',
+    change_type VARCHAR(64) NOT NULL,
+    version VARCHAR(128) NOT NULL DEFAULT '',
+    trace_id VARCHAR(128) NOT NULL DEFAULT '',
+    summary TEXT NOT NULL DEFAULT '',
+    metadata_json JSONB NOT NULL DEFAULT '{}'::jsonb,
+    occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_aiops_change_event_service_time
+    ON aiops_change_event (service, occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_aiops_change_event_trace
+    ON aiops_change_event (trace_id);
 
 CREATE TABLE IF NOT EXISTS ai_rag_chat_turn_audit (
     id BIGSERIAL PRIMARY KEY,

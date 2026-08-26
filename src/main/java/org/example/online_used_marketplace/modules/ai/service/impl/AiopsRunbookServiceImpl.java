@@ -4,6 +4,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
+import org.example.online_used_marketplace.modules.ai.aiops.docker.DockerRestartResult;
+import org.example.online_used_marketplace.modules.ai.aiops.docker.DockerRestartRunbook;
+import org.example.online_used_marketplace.modules.ai.aiops.demo.AiopsDemoService;
+import org.example.online_used_marketplace.modules.ai.aiops.demo.vo.AiopsDemoServiceStateVO;
 import org.example.online_used_marketplace.modules.ai.dto.AiopsRunbookExecuteRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeRepairBatchRequestDTO;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskStatus;
@@ -17,6 +21,7 @@ import org.example.online_used_marketplace.modules.ai.vo.KnowledgeReindexTrigger
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeRepairBatchResponseVO;
 import org.example.online_used_marketplace.modules.user.entity.UserPrincipal;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -36,12 +41,16 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
 
     private static final String REPAIR_KNOWLEDGE_DOC = "REPAIR_KNOWLEDGE_DOC";
     private static final String REPAIR_KNOWLEDGE_BATCH = "REPAIR_KNOWLEDGE_BATCH";
+    private static final String ROLLBACK_KNOWLEDGE_REVISION = "ROLLBACK_KNOWLEDGE_REVISION";
     private static final String MARK_EVENT_RESOLVED = "MARK_EVENT_RESOLVED";
+    private static final String DOCKER_RESTART_VERIFY_ROLLBACK = "DOCKER_RESTART_VERIFY_ROLLBACK";
 
     private final KnowledgeIndexService knowledgeIndexService;
     private final AiopsEventService aiopsEventService;
     private final ObjectMapper objectMapper;
     private final JdbcTemplate jdbcTemplate;
+    private AiopsDemoService aiopsDemoService;
+    private DockerRestartRunbook dockerRestartRunbook;
 
     public AiopsRunbookServiceImpl(KnowledgeIndexService knowledgeIndexService,
                                    AiopsEventService aiopsEventService,
@@ -53,6 +62,16 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         this.jdbcTemplate = jdbcTemplate;
     }
 
+    @Autowired(required = false)
+    public void setAiopsDemoService(AiopsDemoService aiopsDemoService) {
+        this.aiopsDemoService = aiopsDemoService;
+    }
+
+    @Autowired(required = false)
+    public void setDockerRestartRunbook(DockerRestartRunbook dockerRestartRunbook) {
+        this.dockerRestartRunbook = dockerRestartRunbook;
+    }
+
     @Override
     public List<AiopsRunbookActionVO> listRunbooks() {
         List<AiopsRunbookActionVO> out = new ArrayList<>();
@@ -60,8 +79,26 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
                 Map.of("requiredParams", List.of("docId"), "optionalParams", List.of("forceReindex"))));
         out.add(catalog(REPAIR_KNOWLEDGE_BATCH, "批量修复知识文档索引", "LOW",
                 Map.of("optionalParams", List.of("sampleDocs", "perDocLimit", "forceReindex"))));
+        out.add(catalog(ROLLBACK_KNOWLEDGE_REVISION, "回滚知识文档版本", "MEDIUM",
+                Map.of("requiredParams", List.of("targetDocId"), "approvalRequired", true)));
         out.add(catalog(MARK_EVENT_RESOLVED, "标记 AIOps 事件已解决", "LOW",
                 Map.of("requiredParams", List.of("eventId"), "optionalParams", List.of("summary"))));
+        out.add(catalog("RESET_DEMO_SERVICE_FAULT", "清除演示服务受控故障", "MEDIUM",
+                Map.of("requiredParams", List.of("service"),
+                        "approvalRequired", true,
+                        "executionBoundary", "redis-backed demo service allowlist")));
+        Map<String, Object> dockerMetadata = new LinkedHashMap<>();
+        dockerMetadata.put("requiredParams", List.of("targetId"));
+        dockerMetadata.put("approvalRequired", true);
+        dockerMetadata.put("executionBoundary", "isolated Docker target allowlist");
+        dockerMetadata.put("enabled", dockerRestartRunbook != null);
+        if (dockerRestartRunbook != null) {
+            dockerMetadata.putAll(dockerRestartRunbook.catalogMetadata());
+        } else {
+            dockerMetadata.put("targetId", "marketplace-demo-web");
+        }
+        out.add(catalog(DOCKER_RESTART_VERIFY_ROLLBACK,
+                "重启隔离容器并验证，失败时回滚", "MEDIUM", dockerMetadata));
         return out;
     }
 
@@ -80,7 +117,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         AiopsRunbookActionVO vo = new AiopsRunbookActionVO();
         vo.setActionCode(actionCode);
         vo.setActionName(actionName(actionCode));
-        vo.setRiskLevel("LOW");
+        vo.setRiskLevel(actionRiskLevel(actionCode));
         vo.setDryRun(dryRun);
         vo.setExecuted(false);
         vo.setTraceId(traceId);
@@ -119,6 +156,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
                     request.getReason(), false, "NOT_STARTED", baseMetadata(request, vo, null));
             vo.setActionId(actionId);
             RunbookExecutionResult result = executeAction(actionCode, params, request, eventId);
+            result = syncSourceEvent(result, params, eventId);
             vo.setExecuted(true);
             vo.setStatus(result.success() ? "SUCCESS" : "FAILED");
             vo.setMessage(result.message());
@@ -144,6 +182,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
             vo.setMetadata(baseMetadata(request, vo, vo.getResult()));
             vo.setElapsedMs(System.currentTimeMillis() - start);
             aiopsEventService.markEscalated(eventId, vo.getMessage(), "自动修复执行异常，已转人工处理");
+            syncSourceEventSafely(params, eventId, vo.getMessage());
             if (actionId != null) {
                 updateAction(actionId, "FAILED", true, "FAILED", vo.getMessage(), vo.getMetadata());
             }
@@ -154,6 +193,7 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
     private void validateParams(String actionCode, Map<String, Object> params, Long eventId) {
         switch (actionCode) {
             case REPAIR_KNOWLEDGE_DOC -> requiredLong(params, "docId");
+            case ROLLBACK_KNOWLEDGE_REVISION -> requiredLong(params, "targetDocId");
             case MARK_EVENT_RESOLVED -> {
                 if ((eventId == null || eventId <= 0) && longValue(params.get("eventId"), null) == null) {
                     requiredLong(params, "eventId");
@@ -163,6 +203,13 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
                 integer(params.get("sampleDocs"), 20);
                 integer(params.get("perDocLimit"), 200);
             }
+            case "RESET_DEMO_SERVICE_FAULT" -> {
+                if (!StringUtils.hasText(str(params.get("service"), ""))) {
+                    throw new BusinessException(ResultCode.BAD_REQUEST,
+                            "RESET_DEMO_SERVICE_FAULT 需要 service");
+                }
+            }
+            case DOCKER_RESTART_VERIFY_ROLLBACK -> validateDockerTarget(params);
             default -> throw new BusinessException(ResultCode.BAD_REQUEST, "不支持的runbook动作：" + actionCode);
         }
     }
@@ -174,7 +221,10 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         return switch (actionCode) {
             case REPAIR_KNOWLEDGE_DOC -> repairKnowledgeDoc(params);
             case REPAIR_KNOWLEDGE_BATCH -> repairKnowledgeBatch(params);
+            case ROLLBACK_KNOWLEDGE_REVISION -> rollbackKnowledgeRevision(params);
             case MARK_EVENT_RESOLVED -> markEventResolved(eventId, params);
+            case "RESET_DEMO_SERVICE_FAULT" -> resetDemoServiceFault(params, request);
+            case DOCKER_RESTART_VERIFY_ROLLBACK -> restartDockerAndVerify(params);
             default -> throw new BusinessException(ResultCode.BAD_REQUEST, "不支持的runbook动作：" + actionCode);
         };
     }
@@ -228,6 +278,31 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
                 result);
     }
 
+    private RunbookExecutionResult rollbackKnowledgeRevision(Map<String, Object> params) {
+        Long targetDocId = requiredLong(params, "targetDocId");
+        KnowledgeReindexTriggerVO trigger = knowledgeIndexService.rollbackRevision(targetDocId, false);
+        KnowledgeIndexTaskVO task = trigger.getTask();
+        boolean success = task != null && !KnowledgeIndexTaskStatus.FAILED.equals(task.getStatus())
+                && Boolean.TRUE.equals(task.getConsistent());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("taskId", trigger.getTaskId());
+        result.put("targetDocId", targetDocId);
+        result.put("status", trigger.getStatus() == null ? "" : trigger.getStatus().name());
+        result.put("message", trigger.getMessage());
+        if (task != null) {
+            result.put("consistent", task.getConsistent());
+            result.put("dbCount", task.getDbCount());
+            result.put("esCount", task.getEsCount());
+            result.put("milvusCount", task.getMilvusCount());
+            result.put("elapsedMs", task.getElapsedMs());
+            result.put("errorMsg", task.getErrorMsg());
+        }
+        return new RunbookExecutionResult(success,
+                success ? "knowledge revision rollback finished and verified" : "knowledge revision rollback verification failed",
+                success ? "PASSED" : "FAILED",
+                result);
+    }
+
     private RunbookExecutionResult markEventResolved(Long eventId, Map<String, Object> params) {
         Long targetEventId = eventId == null ? requiredLong(params, "eventId") : eventId;
         AiopsEventVO event = aiopsEventService.markResolved(targetEventId, "MANUAL_OVERRIDE",
@@ -243,6 +318,124 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
                 result);
     }
 
+    private RunbookExecutionResult resetDemoServiceFault(Map<String, Object> params,
+                                                         AiopsRunbookExecuteRequestDTO request) {
+        if (aiopsDemoService == null) {
+            throw new BusinessException(ResultCode.CONFLICT,
+                    "RESET_DEMO_SERVICE_FAULT未启用：demo service bean不可用");
+        }
+        String service = str(params.get("service"), "");
+        if (!StringUtils.hasText(service)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "RESET_DEMO_SERVICE_FAULT 需要 service");
+        }
+        aiopsDemoService.resetFault(service, request.getIdempotencyKey());
+
+        // The write result is deliberately ignored. Verification must read Redis again.
+        AiopsDemoServiceStateVO verified = aiopsDemoService.getState(service);
+        boolean healthy = Integer.valueOf(1).equals(verified.getHealth())
+                && verified.getErrorRatio() != null
+                && Double.compare(0.0D, verified.getErrorRatio()) == 0
+                && Boolean.FALSE.equals(verified.getFaulted());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("service", verified.getService());
+        result.put("health", verified.getHealth());
+        result.put("errorRatio", verified.getErrorRatio());
+        result.put("faulted", verified.getFaulted());
+        result.put("traceId", verified.getTraceId());
+        result.put("verificationRead", true);
+        return new RunbookExecutionResult(healthy,
+                healthy ? "demo service fault reset and independently verified"
+                        : "demo service reset write completed but health verification failed",
+                healthy ? "PASSED" : "FAILED",
+                result);
+    }
+
+    private void validateDockerTarget(Map<String, Object> params) {
+        if (params.containsKey("containerName") || params.containsKey("rollbackImage")
+                || params.containsKey("command") || params.containsKey("healthUrl")) {
+            throw new BusinessException(ResultCode.BAD_REQUEST,
+                    "Docker Runbook 只接受逻辑 targetId，不接受基础设施参数或命令");
+        }
+        String targetId = str(params.get("targetId"), "");
+        if (!StringUtils.hasText(targetId)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST,
+                    "DOCKER_RESTART_VERIFY_ROLLBACK 需要 targetId");
+        }
+        if (dockerRestartRunbook == null) {
+            throw new BusinessException(ResultCode.CONFLICT,
+                    "Docker Runbook 默认关闭，需通过环境变量和 SSH 公钥显式启用");
+        }
+        if (!dockerRestartRunbook.targetId().equals(targetId)) {
+            throw new BusinessException(ResultCode.FORBIDDEN, "Docker targetId 不在白名单中");
+        }
+    }
+
+    private RunbookExecutionResult restartDockerAndVerify(Map<String, Object> params) {
+        validateDockerTarget(params);
+        DockerRestartResult execution = dockerRestartRunbook.execute(str(params.get("targetId"), ""));
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("targetId", dockerRestartRunbook.targetId());
+        result.put("outcome", execution.outcome().name());
+        result.put("rollbackAttempted", execution.rollbackAttempted());
+        result.put("rollbackSuccessful", execution.rollbackSuccessful());
+        result.put("stages", execution.stages().stream().map(stage -> {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("stage", stage.stage().name());
+            item.put("status", stage.status().name());
+            item.put("message", stage.message());
+            item.put("elapsedMs", stage.elapsedMs());
+            item.put("details", stage.details());
+            return item;
+        }).toList());
+        String verificationStatus = switch (execution.outcome()) {
+            case HEALTHY_AFTER_RESTART -> "PASSED";
+            case HEALTHY_AFTER_ROLLBACK -> "ROLLED_BACK";
+            default -> "FAILED";
+        };
+        return new RunbookExecutionResult(execution.successful(), execution.message(),
+                verificationStatus, result);
+    }
+
+    private RunbookExecutionResult syncSourceEvent(RunbookExecutionResult result,
+                                                   Map<String, Object> params,
+                                                   Long operationEventId) {
+        Long sourceEventId = longValue(params.get("__sourceEventId"), null);
+        if (sourceEventId == null) {
+            return result;
+        }
+        if (sourceEventId.equals(operationEventId)) {
+            throw new BusinessException(ResultCode.CONFLICT, "sourceEventId不能指向当前受控操作事件");
+        }
+        AiopsEventVO source = aiopsEventService.get(sourceEventId);
+        Map<String, Object> sync = new LinkedHashMap<>();
+        sync.put("sourceEventId", sourceEventId);
+        sync.put("beforeStatus", source.getStatus());
+        if (List.of("RESOLVED", "ESCALATED", "REJECTED").contains(str(source.getStatus(), "").toUpperCase(Locale.ROOT))) {
+            sync.put("updated", false);
+            sync.put("skippedTerminal", true);
+            sync.put("afterStatus", source.getStatus());
+        } else {
+            AiopsEventVO updated = result.success()
+                    ? aiopsEventService.markResolved(sourceEventId, "AUTO_VERIFIED", result.message())
+                    : aiopsEventService.markEscalated(sourceEventId, result.message(), "受控修复或独立验证失败，已转人工处理");
+            sync.put("updated", true);
+            sync.put("skippedTerminal", false);
+            sync.put("afterStatus", updated.getStatus());
+        }
+        Map<String, Object> enriched = new LinkedHashMap<>(result.result() == null ? Map.of() : result.result());
+        enriched.put("sourceEventSync", sync);
+        return new RunbookExecutionResult(result.success(), result.message(), result.verificationStatus(), enriched);
+    }
+
+    private void syncSourceEventSafely(Map<String, Object> params, Long operationEventId, String message) {
+        try {
+            syncSourceEvent(new RunbookExecutionResult(false, message, "FAILED", Map.of()), params, operationEventId);
+        } catch (RuntimeException ignored) {
+            // Keep the original runbook failure visible. Invalid or terminal
+            // source events must never be overwritten as a side effect.
+        }
+    }
+
     private AiopsRunbookActionVO catalog(String actionCode, String name, String risk, Map<String, Object> metadata) {
         AiopsRunbookActionVO vo = new AiopsRunbookActionVO();
         vo.setActionCode(actionCode);
@@ -252,7 +445,9 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         vo.setExecuted(false);
         vo.setStatus("AVAILABLE");
         vo.setVerificationStatus("NOT_STARTED");
-        vo.setMessage("white-listed low-risk runbook action");
+        vo.setMessage("MEDIUM".equalsIgnoreCase(risk)
+                ? "white-listed runbook action; controlled approval required for execution"
+                : "white-listed low-risk runbook action");
         vo.setMetadata(new LinkedHashMap<>(metadata));
         return vo;
     }
@@ -338,7 +533,9 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
             throw new BusinessException(ResultCode.BAD_REQUEST, "actionCode不能为空");
         }
         String normalized = actionCode.trim().toUpperCase(Locale.ROOT);
-        if (!List.of(REPAIR_KNOWLEDGE_DOC, REPAIR_KNOWLEDGE_BATCH, MARK_EVENT_RESOLVED).contains(normalized)) {
+        if (!List.of(REPAIR_KNOWLEDGE_DOC, REPAIR_KNOWLEDGE_BATCH, ROLLBACK_KNOWLEDGE_REVISION,
+                MARK_EVENT_RESOLVED, "RESET_DEMO_SERVICE_FAULT", DOCKER_RESTART_VERIFY_ROLLBACK)
+                .contains(normalized)) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "不支持的runbook动作：" + normalized);
         }
         return normalized;
@@ -348,9 +545,18 @@ public class AiopsRunbookServiceImpl implements AiopsRunbookService {
         return switch (actionCode) {
             case REPAIR_KNOWLEDGE_DOC -> "修复单个知识文档索引";
             case REPAIR_KNOWLEDGE_BATCH -> "批量修复知识文档索引";
+            case ROLLBACK_KNOWLEDGE_REVISION -> "回滚知识文档版本";
             case MARK_EVENT_RESOLVED -> "标记 AIOps 事件已解决";
+            case "RESET_DEMO_SERVICE_FAULT" -> "清除演示服务故障";
+            case DOCKER_RESTART_VERIFY_ROLLBACK -> "重启隔离容器并验证，失败时回滚";
             default -> actionCode;
         };
+    }
+
+    private String actionRiskLevel(String actionCode) {
+        return ROLLBACK_KNOWLEDGE_REVISION.equals(actionCode)
+                || "RESET_DEMO_SERVICE_FAULT".equals(actionCode)
+                || DOCKER_RESTART_VERIFY_ROLLBACK.equals(actionCode) ? "MEDIUM" : "LOW";
     }
 
     private String buildIdempotencyKey(AiopsRunbookExecuteRequestDTO request, String actionCode, Map<String, Object> params) {

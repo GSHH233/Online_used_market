@@ -7,6 +7,7 @@ import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterD
 import org.example.online_used_marketplace.modules.ai.dto.ProductOptimizeRequestDTO;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeSourceType;
 import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistStep;
+import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistRetrievalTraceHelper;
 import org.example.online_used_marketplace.modules.ai.pipeline.RagSourceMergeHelper;
 import org.example.online_used_marketplace.modules.ai.service.AiProductService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
@@ -32,6 +33,7 @@ public class OptimizeStepImpl implements PublishAssistStep {
     private final AiProductService aiProductService;
     private final KnowledgeSearchService knowledgeSearchService;
     private final RagSourceMergeHelper ragSourceMergeHelper;
+    private final PublishAssistRetrievalTraceHelper retrievalTraceHelper;
 
     @Override
     public String stepKey() {
@@ -73,6 +75,16 @@ public class OptimizeStepImpl implements PublishAssistStep {
         filter.setSourceType(KnowledgeSourceType.GUIDE);
         KnowledgeSearchResponseVO response = knowledgeSearchService.search(question, 5, filter);
         List<KnowledgeSearchHitVO> hits = (response == null || response.getHits() == null) ? Collections.emptyList() : response.getHits();
+        retrievalTraceHelper.append(result, retrievalTraceHelper.toRetrievalTrace(
+                stepKey(),
+                "合规文案指南检索",
+                result.getPipelineRound(),
+                KnowledgeSourceType.GUIDE,
+                question,
+                5,
+                response,
+                false
+        ));
         List<RagSourceVO> incoming = ragSourceMergeHelper.toRagSources(hits);
         List<RagSourceVO> merged = ragSourceMergeHelper.mergeSources(result.getSources(), incoming, SOURCE_LIMIT);
 

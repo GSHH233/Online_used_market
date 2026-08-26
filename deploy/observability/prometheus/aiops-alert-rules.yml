@@ -1,0 +1,17 @@
+groups:
+  - name: used-marketplace-aiops-demo
+    interval: 15s
+    rules:
+      - alert: AiopsDemoServiceUnhealthy
+        expr: |
+          aiops_demo_service_health{service="marketplace-demo-worker"} == 0
+          or on(service)
+          aiops_demo_service_error_ratio{service="marketplace-demo-worker"} > 0.5
+        for: 15s
+        labels:
+          severity: warning
+          service: marketplace-demo-worker
+          environment: demo
+        annotations:
+          summary: Demo service health check failed
+          description: External observation only. The backend reconstructs any remediation plan from its own whitelist.

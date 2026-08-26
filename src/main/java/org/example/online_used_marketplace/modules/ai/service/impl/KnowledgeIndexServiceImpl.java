@@ -15,6 +15,7 @@ import org.example.online_used_marketplace.modules.ai.entity.KnowledgeIndexTask;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskStage;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskStatus;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeIndexTaskType;
+import org.example.online_used_marketplace.modules.ai.enums.KnowledgeDocStatus;
 import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeChunkMapper;
 import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeDocMapper;
 import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeIndexTaskMapper;
@@ -114,6 +115,25 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
     }
 
     @Override
+    public KnowledgeReindexTriggerVO rollbackRevision(Long docId, Boolean async) {
+        boolean asyncTask = Boolean.TRUE.equals(async);
+        knowledgeDocService.reserveRetiredRevisionForRollback(docId);
+        try {
+            KnowledgeIndexTask task = createTask(docId, KnowledgeIndexTaskType.ROLLBACK, asyncTask, true);
+            dispatch(task.getId(), asyncTask, false);
+            KnowledgeIndexTask latest = requireTask(task.getId());
+            if (KnowledgeIndexTaskStatus.FAILED.equals(latest.getStatus())
+                    || KnowledgeIndexTaskStatus.DEAD_LETTERED.equals(latest.getStatus())) {
+                knowledgeDocService.releaseRollbackReservation(docId, latest.getErrorMsg());
+            }
+            return triggerVO(latest, taskMessage(latest, "回滚任务已提交", "知识版本回滚完成", "知识版本回滚失败"));
+        } catch (RuntimeException ex) {
+            knowledgeDocService.releaseRollbackReservation(docId, safeMsg(ex));
+            throw ex;
+        }
+    }
+
+    @Override
     public KnowledgeRepairBatchResponseVO repairBatch(KnowledgeRepairBatchRequestDTO dto) {
         KnowledgeRepairBatchRequestDTO request = dto == null ? new KnowledgeRepairBatchRequestDTO() : dto;
         boolean force = Boolean.TRUE.equals(request.getForceReindex());
@@ -179,7 +199,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
                                           KnowledgeIndexTaskType taskType,
                                           boolean async,
                                           boolean forceRepair) {
-        validateDoc(docId);
+        validateDoc(docId, taskType);
         LocalDateTime now = LocalDateTime.now();
         KnowledgeIndexTask task = new KnowledgeIndexTask();
         task.setDocId(docId);
@@ -277,6 +297,10 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
     @Override
     public void markTaskDeadLettered(Long taskId, int retryCount) {
         knowledgeIndexTaskMapper.markDeadLettered(taskId, retryCount);
+        KnowledgeIndexTask task = requireTask(taskId);
+        if (KnowledgeIndexTaskType.ROLLBACK.equals(task.getTaskType())) {
+            knowledgeDocService.releaseRollbackReservation(task.getDocId(), "回滚任务进入死信队列");
+        }
     }
 
     private boolean claimTask(Long taskId, int retryCount) {
@@ -287,7 +311,8 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         KnowledgeIndexTask task = requireTask(taskId);
 
         try {
-            KnowledgeDoc doc = validateDoc(task.getDocId());
+            KnowledgeDoc doc = validateDoc(task.getDocId(), task.getTaskType());
+            updateStage(taskId, KnowledgeIndexTaskStage.CONSISTENCY_CHECK);
             StorageConsistencyDocVO before = consistencyService.inspectDoc(task.getDocId(), DEFAULT_CONSISTENCY_LIMIT);
             if (KnowledgeIndexTaskType.REPAIR.equals(task.getTaskType())
                     && !Boolean.TRUE.equals(task.getForceRepair())
@@ -296,6 +321,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
                 return;
             }
 
+            updateStage(taskId, KnowledgeIndexTaskStage.STAGING);
             IndexResult result = rebuildIndexes(taskId, doc, before);
             VerifySnapshot verified = waitForConsistency(task.getDocId(), DEFAULT_CONSISTENCY_LIMIT);
             StorageConsistencyDocVO after = verified.consistency();
@@ -307,9 +333,17 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
             detail.put("esUpserted", result.esUpserted());
             detail.put("indexVersion", result.indexVersion());
             detail.put("chunkQuality", result.quality());
+            detail.put("taskType", task.getTaskType().name());
+            if (KnowledgeIndexTaskType.ROLLBACK.equals(task.getTaskType())) {
+                detail.put("rollbackRevision", doc.getRevision());
+                detail.put("rollbackLogicalKnowledgeId", doc.getLogicalKnowledgeId());
+            }
 
             if (!Boolean.TRUE.equals(after.getConsistent())) {
                 failTask(taskId, "三存储一致性校验失败", detail);
+                if (KnowledgeIndexTaskType.ROLLBACK.equals(task.getTaskType())) {
+                    knowledgeDocService.releaseRollbackReservation(task.getDocId(), "回滚三存储一致性校验失败");
+                }
                 if (throwOnFailure) {
                     throw new BusinessException(ResultCode.INTERNAL_ERROR, "三存储一致性校验失败");
                 }
@@ -319,6 +353,9 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         } catch (Exception e) {
             log.error("[KnowledgeIndexJob] failed, taskId={}", taskId, e);
             failTask(taskId, safeMsg(e), Map.of("exception", e.getClass().getSimpleName()));
+            if (KnowledgeIndexTaskType.ROLLBACK.equals(task.getTaskType())) {
+                knowledgeDocService.releaseRollbackReservation(task.getDocId(), safeMsg(e));
+            }
             if (throwOnFailure) {
                 throw e instanceof BusinessException be
                         ? be
@@ -467,18 +504,14 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
     private void activateVersion(KnowledgeDoc doc,
                                  String indexVersion,
                                  List<KnowledgeChunk> insertedChunks) {
-        doc.setActiveIndexVersion(indexVersion);
-        doc.setUpdatedTime(LocalDateTime.now());
-        if (knowledgeDocMapper.updateById(doc) <= 0) {
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "Failed to switch active index version");
-        }
+        List<Long> retiredDocIds = knowledgeDocService.activateIndexedVersion(doc.getId(), indexVersion);
         for (KnowledgeChunk chunk : insertedChunks) {
             chunk.setIndexStatus("ACTIVE");
             chunk.setUpdatedTime(LocalDateTime.now());
             knowledgeChunkMapper.updateById(chunk);
         }
-        log.info("[KnowledgeIndexJob] active index version switched, docId={}, version={}, chunks={}",
-                doc.getId(), indexVersion, insertedChunks.size());
+        log.info("[KnowledgeIndexJob] active index version switched, docId={}, version={}, chunks={}, retiredDocIds={}",
+                doc.getId(), indexVersion, insertedChunks.size(), retiredDocIds);
     }
 
     private void cleanupRetiredChunks(List<KnowledgeChunk> oldChunks) {
@@ -533,8 +566,9 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         metadata.setDocVersion(doc.getDocVersion());
         metadata.setEffectiveFrom(doc.getEffectiveFrom() == null ? "" : doc.getEffectiveFrom().toString());
         metadata.setEffectiveTo(doc.getEffectiveTo() == null ? "" : doc.getEffectiveTo().toString());
-        metadata.setDocStatus(doc.getStatus());
+        metadata.setDocStatus(KnowledgeDocStatus.ACTIVE.name());
         metadata.setDisabledReason(doc.getDisabledReason());
+        metadata.setLogicalKnowledgeId(doc.getLogicalKnowledgeId());
         metadata.setHeadingPath(payload.getHeadingPath());
         metadata.setPageFrom(payload.getPageFrom());
         metadata.setPageTo(payload.getPageTo());
@@ -651,13 +685,25 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
         knowledgeIndexTaskMapper.updateById(task);
     }
 
-    private KnowledgeDoc validateDoc(Long docId) {
+    private KnowledgeDoc validateDoc(Long docId, KnowledgeIndexTaskType taskType) {
         if (docId == null || docId <= 0) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "知识文档ID不合法");
         }
         KnowledgeDoc doc = knowledgeDocService.getByIdOrThrow(docId);
         if (!StringUtils.hasText(doc.getContent())) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "知识文档内容为空，无法索引");
+        }
+        boolean retired = KnowledgeDocStatus.RETIRED.name().equalsIgnoreCase(doc.getStatus());
+        if (KnowledgeIndexTaskType.ROLLBACK.equals(taskType) && !retired) {
+            throw new BusinessException(ResultCode.CONFLICT, "回滚目标必须是 RETIRED 状态的知识版本");
+        }
+        if (KnowledgeIndexTaskType.ROLLBACK.equals(taskType)
+                && "RUNNING".equalsIgnoreCase(doc.getCleanupStatus())) {
+            throw new BusinessException(ResultCode.CONFLICT, "目标版本正在清理索引，请稍后重试回滚");
+        }
+        if (retired && !KnowledgeIndexTaskType.ROLLBACK.equals(taskType)) {
+            throw new BusinessException(ResultCode.CONFLICT,
+                    "RETIRED 版本只能通过管理员受控回滚重新激活");
         }
         return doc;
     }
@@ -787,6 +833,7 @@ public class KnowledgeIndexServiceImpl implements KnowledgeIndexService {
                 doc.setDocStatus(metadata == null ? "" : safe(metadata.getDocStatus()));
                 doc.setDisabledReason(metadata == null ? "" : safe(metadata.getDisabledReason()));
                 doc.setIndexVersion(metadata == null ? "" : safe(metadata.getIndexVersion()));
+                doc.setLogicalKnowledgeId(metadata == null ? "" : safe(metadata.getLogicalKnowledgeId()));
 
                 esOps.save(doc, IndexCoordinates.of(ES_INDEX_NAME));
                 success++;

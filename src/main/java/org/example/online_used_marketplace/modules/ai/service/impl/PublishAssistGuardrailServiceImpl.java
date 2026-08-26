@@ -7,6 +7,7 @@ import org.example.online_used_marketplace.modules.ai.enums.AssistStepStatus;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeSourceType;
 import org.example.online_used_marketplace.modules.ai.enums.PublishAssistGuardrailRuleCode;
 import org.example.online_used_marketplace.modules.ai.enums.RetrievalMode;
+import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistRetrievalTraceHelper;
 import org.example.online_used_marketplace.modules.ai.pipeline.RagSourceMergeHelper;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
 import org.example.online_used_marketplace.modules.ai.service.PublishAssistGuardrailService;
@@ -15,6 +16,7 @@ import org.example.online_used_marketplace.modules.ai.vo.KnowledgeSearchHitVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeSearchResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.ProductOptimizeResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.ProductPublishAssistVO;
+import org.example.online_used_marketplace.modules.ai.vo.PublishAssistRetrievalVO;
 import org.example.online_used_marketplace.modules.ai.vo.RagSourceVO;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -32,6 +34,7 @@ public class PublishAssistGuardrailServiceImpl implements PublishAssistGuardrail
 
     private final KnowledgeSearchService knowledgeSearchService;
     private final RagSourceMergeHelper ragSourceMergeHelper;
+    private final PublishAssistRetrievalTraceHelper retrievalTraceHelper;
 
     @Override
     public Optional<ProductPublishAssistVO> apply(ProductPublishAssistRequestDTO request, List<AssistStepTraceVO> trace) {
@@ -73,24 +76,37 @@ public class PublishAssistGuardrailServiceImpl implements PublishAssistGuardrail
         vo.setRiskWarnings(List.of("商品信息不足，无法完成可靠判断；请补充关键信息后再发布"));
         vo.setPriceSuggestion(rule.priceSuggestion());
         vo.setCanPublish(true);
+        GuardrailRetrievalOutcome retrievalOutcome = searchRuleSources(rule);
         vo.setTrace(trace);
-        vo.setSources(searchRuleSources(rule));
+        vo.setSources(retrievalOutcome.sources());
+        vo.setRetrievals(List.of(retrievalOutcome.retrieval()));
         vo.setGenerationMode("RULE_GUARDRAIL");
         vo.setFallbackUsed(false);
         vo.setFallbackReason("");
         return vo;
     }
 
-    private List<RagSourceVO> searchRuleSources(RuleSpec rule) {
+    private GuardrailRetrievalOutcome searchRuleSources(RuleSpec rule) {
         KnowledgeSearchFilterDTO filter = new KnowledgeSearchFilterDTO();
         filter.setSourceType(rule.sourceType());
         KnowledgeSearchResponseVO response = knowledgeSearchService.search(rule.sourceQuestion(), 5, filter, RetrievalMode.KEYWORD_ONLY);
         List<KnowledgeSearchHitVO> hits = (response == null || response.getHits() == null) ? Collections.emptyList() : response.getHits();
         List<RagSourceVO> sources = ragSourceMergeHelper.toRagSources(hits);
-        if (!sources.isEmpty()) {
-            return sources;
+        boolean fallbackSourceUsed = sources.isEmpty();
+        if (fallbackSourceUsed) {
+            sources = fallbackSources(rule);
         }
-        return fallbackSources(rule);
+        PublishAssistRetrievalVO retrieval = retrievalTraceHelper.toRetrievalTrace(
+                "guardrail",
+                "入口防护规则检索",
+                1,
+                rule.sourceType(),
+                rule.sourceQuestion(),
+                5,
+                response,
+                fallbackSourceUsed
+        );
+        return new GuardrailRetrievalOutcome(sources, retrieval);
     }
 
     private List<RagSourceVO> fallbackSources(RuleSpec rule) {
@@ -198,6 +214,9 @@ public class PublishAssistGuardrailServiceImpl implements PublishAssistGuardrail
 
     private String safeText(String text) {
         return StringUtils.hasText(text) ? text.trim() : "";
+    }
+
+    private record GuardrailRetrievalOutcome(List<RagSourceVO> sources, PublishAssistRetrievalVO retrieval) {
     }
 
     private record RuleSpec(

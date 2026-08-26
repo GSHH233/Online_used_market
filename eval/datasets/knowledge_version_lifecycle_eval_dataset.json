@@ -1,0 +1,18 @@
+[
+  {
+    "caseId": "LIFECYCLE-001",
+    "assertions": ["new revision starts DRAFT", "successful ingestion promotes v1 to ACTIVE"]
+  },
+  {
+    "caseId": "LIFECYCLE-002",
+    "assertions": ["new ACTIVE revision retires v1", "v1 chunks remain until retentionUntil"]
+  },
+  {
+    "caseId": "LIFECYCLE-003",
+    "assertions": ["RETIRED revision is excluded from retrieval"]
+  },
+  {
+    "caseId": "LIFECYCLE-004",
+    "assertions": ["INTERNAL plan plus ADMIN approval", "rebuild and consistency verification", "ACTIVE/RETIRED atomic version swap", "trace and action audit"]
+  }
+]

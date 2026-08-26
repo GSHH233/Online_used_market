@@ -39,4 +39,32 @@ public class KnowledgeSearchResponseVO {
     private QueryRewritePlanVO rewritePlan;
 
     private Long rewriteElapsedMs;
+
+    private Boolean rerankUsed;
+
+    private Integer rerankCandidateCount;
+
+    private Integer selectedTopK;
+
+    private Boolean dynamicTopKApplied;
+
+    private List<String> queryFacets;
+
+    private List<String> coveredFacets;
+
+    private Double facetCoverage;
+
+    private List<String> evidencePlan;
+
+    private List<String> coveredEvidence;
+
+    private Double evidenceCoverage;
+
+    private Long retrievalElapsedMs;
+
+    private Long baselineElapsedMs;
+
+    private Long branchRetrievalElapsedMs;
+
+    private Long rerankElapsedMs;
 }

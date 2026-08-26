@@ -34,5 +34,13 @@ public class KnowledgeSearchHitVO {
 
     private Double score;
 
+    private String logicalKnowledgeId;
+
+    private Double retrievalScore;
+
+    private Double rerankScore;
+
+    private String rerankReason;
+
     private String metadata;
 }

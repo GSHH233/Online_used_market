@@ -7,6 +7,7 @@ import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterD
 import org.example.online_used_marketplace.modules.ai.dto.ProductPublishAssistRequestDTO;
 import org.example.online_used_marketplace.modules.ai.enums.KnowledgeSourceType;
 import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistStep;
+import org.example.online_used_marketplace.modules.ai.pipeline.PublishAssistRetrievalTraceHelper;
 import org.example.online_used_marketplace.modules.ai.pipeline.RagSourceMergeHelper;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
 import org.example.online_used_marketplace.modules.ai.service.RiskAssessmentService;
@@ -33,6 +34,7 @@ public class RiskStepImpl implements PublishAssistStep {
     private final RiskAssessmentService riskAssessmentService;
     private final KnowledgeSearchService knowledgeSearchService;
     private final RagSourceMergeHelper ragSourceMergeHelper;
+    private final PublishAssistRetrievalTraceHelper retrievalTraceHelper;
 
     @Override
     public void apply(PublishInputContext context, PublishAssistResult result) {
@@ -52,6 +54,16 @@ public class RiskStepImpl implements PublishAssistStep {
         KnowledgeSearchResponseVO response = knowledgeSearchService.search(question, 5, filter);
         List<KnowledgeSearchHitVO> hits = (response == null || response.getHits() == null)
                 ? Collections.emptyList() : response.getHits();
+        retrievalTraceHelper.append(result, retrievalTraceHelper.toRetrievalTrace(
+                stepKey(),
+                "发布风险规则检索",
+                result.getPipelineRound(),
+                KnowledgeSourceType.RULE,
+                question,
+                5,
+                response,
+                false
+        ));
 
         // RAG 命中只用于解释规则来源。是否阻断必须由原始发布文本的确定性规则命中决定，
         // 否则召回一篇包含“禁止”的通用规则文档就会误伤正常商品。

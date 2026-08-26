@@ -90,6 +90,8 @@ public class KnowledgeStorageConsistencyServiceImpl implements KnowledgeStorageC
         int sample = sampleDocs == null ? 10 : Math.max(1, Math.min(sampleDocs, 100));
         QueryWrapper<KnowledgeDoc> wrapper = new QueryWrapper<>();
         wrapper.select("id");
+        // RETIRED versions intentionally leave the searchable set and may later have no chunks.
+        wrapper.eq("status", org.example.online_used_marketplace.modules.ai.enums.KnowledgeDocStatus.ACTIVE.name());
         wrapper.orderByDesc("id");
         wrapper.last("limit " + sample);
         return knowledgeDocMapper.selectList(wrapper).stream()

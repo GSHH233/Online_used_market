@@ -3,6 +3,7 @@ package org.example.online_used_marketplace.modules.ai.context;
 import lombok.Data;
 import org.example.online_used_marketplace.modules.ai.vo.AssistStepTraceVO;
 import org.example.online_used_marketplace.modules.ai.vo.ProductOptimizeResponseVO;
+import org.example.online_used_marketplace.modules.ai.vo.PublishAssistRetrievalVO;
 import org.example.online_used_marketplace.modules.ai.vo.RagSourceVO;
 import org.example.online_used_marketplace.modules.ai.vo.RiskEvidenceItemVO;
 
@@ -48,6 +49,13 @@ public class PublishAssistResult {
     private List<RiskEvidenceItemVO> riskEvidence;
 
     private List<RagSourceVO> sources;
+
+    /**
+     * 当前执行轮次，仅用于将风险检索观测与 Replan 链路关联。
+     */
+    private Integer pipelineRound;
+
+    private List<PublishAssistRetrievalVO> retrievals;
 
     private String generationMode;
 

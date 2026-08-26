@@ -6,6 +6,7 @@ package org.example.online_used_marketplace.modules.ai.enums;
 public enum KnowledgeIndexTaskStage {
     CREATED,
     CONSISTENCY_CHECK,
+    STAGING,
     CLEANUP,
     SPLIT,
     DB_WRITE,

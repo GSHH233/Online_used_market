@@ -3,6 +3,8 @@ package org.example.online_used_marketplace.common;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -14,8 +16,15 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 public class GlobalExceptionHandler {
 
     @ExceptionHandler(BusinessException.class)
-    public Result<Void> handleBusinessException(BusinessException e) {
-        return new Result<>(e.getCode(), e.getMessage(), null);
+    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
+        Result<Void> body = new Result<>(e.getCode(), e.getMessage(), null);
+        if (e.getCode() == ResultCode.UNAUTHORIZED.getCode()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
+        }
+        if (e.getCode() == ResultCode.FORBIDDEN.getCode()) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(body);
+        }
+        return ResponseEntity.ok(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

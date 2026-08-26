@@ -1,6 +1,7 @@
 package org.example.online_used_marketplace.modules.ai.service.impl;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterDTO;
@@ -10,11 +11,13 @@ import org.example.online_used_marketplace.modules.ai.enums.RetrievalMode;
 import org.example.online_used_marketplace.modules.ai.mapper.KnowledgeDocMapper;
 import org.example.online_used_marketplace.modules.ai.service.EmbeddingService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
+import org.example.online_used_marketplace.modules.ai.service.KnowledgeReranker;
 import org.example.online_used_marketplace.modules.ai.service.KeywordSearchService;
 import org.example.online_used_marketplace.modules.ai.service.QueryRewriteService;
 import org.example.online_used_marketplace.modules.ai.service.VectorStore;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeSearchHitVO;
 import org.example.online_used_marketplace.modules.ai.vo.KnowledgeSearchResponseVO;
+import org.example.online_used_marketplace.modules.ai.vo.KnowledgeRerankResult;
 import org.example.online_used_marketplace.modules.ai.vo.RagSourceVO;
 import org.example.online_used_marketplace.modules.ai.vo.QueryRewritePlanVO;
 import org.example.online_used_marketplace.modules.ai.config.KnowledgeIngestionProperties;
@@ -26,15 +29,20 @@ import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 知识检索服务实现：支持向量、关键词、混合三种检索模式。
  */
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
 
     private static final int DEFAULT_TOP_K = 5;
@@ -46,6 +54,8 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
     private final KeywordSearchService keywordSearchService;
     private final KnowledgeDocMapper knowledgeDocMapper;
     private final QueryRewriteService queryRewriteService;
+    private final KnowledgeReranker knowledgeReranker;
+    private final KnowledgeRetrievalExecutor retrievalExecutor;
     private final KnowledgeIngestionProperties ingestionProperties;
     private final MeterRegistry meterRegistry;
 
@@ -79,33 +89,61 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
                                                   Integer topK,
                                                   KnowledgeSearchFilterDTO filter,
                                                   boolean rewriteEnabled) {
+        long retrievalStartedNanos = System.nanoTime();
         String normalizedQuestion = normalizeQuestion(question);
         int normalizedTopK = normalizeTopK(topK);
-        int candidateK = Math.max(normalizedTopK, HYBRID_CANDIDATE_K);
+        KnowledgeEvidencePlanner.Plan retrievalEvidencePlan = KnowledgeEvidencePlanner.plan(normalizedQuestion);
+        int baseCandidateK = Math.max(normalizedTopK,
+                Math.max(HYBRID_CANDIDATE_K, ingestionProperties.getRetrieval().getCandidateK()));
+        int evidenceCandidateBudget = Math.max(0,
+                ingestionProperties.getRetrieval().getEvidenceCandidatesPerRequirement())
+                * retrievalEvidencePlan.requirements().size();
+        int maxCandidateK = Math.max(baseCandidateK,
+                ingestionProperties.getRetrieval().getMaxCandidateK());
+        int candidateK = Math.min(maxCandidateK, baseCandidateK + evidenceCandidateBudget);
+        Map<Long, KnowledgeDoc> governanceDocCache = new HashMap<>();
 
-        List<RagSourceVO> vectorHits = applyGovernance(doVectorSearch(normalizedQuestion, candidateK, filter));
-        List<RagSourceVO> keywordHits = applyGovernance(keywordSearchService.searchByKeyword(normalizedQuestion, candidateK, filter));
-        String keywordDebug = keywordSearchService.getLastDebugInfo();
-        List<RagSourceVO> baseline = rrfFuse(vectorHits, keywordHits, normalizedTopK);
+        long baselineStartedNanos = System.nanoTime();
+        CompletableFuture<ChannelHits> vectorFuture = retrievalExecutor.submit(
+                () -> vectorChannel(normalizedQuestion, candidateK, filter));
+        CompletableFuture<ChannelHits> keywordFuture = retrievalExecutor.submit(
+                () -> keywordChannel(normalizedQuestion, candidateK, filter));
+        ChannelHits vectorBaseline = awaitChannel(vectorFuture, "vector_baseline");
+        ChannelHits keywordBaseline = awaitChannel(keywordFuture, "keyword_baseline");
+        List<RagSourceVO> vectorHits = applyGovernance(vectorBaseline.sources(), governanceDocCache);
+        List<RagSourceVO> keywordHits = applyGovernance(keywordBaseline.sources(), governanceDocCache);
+        List<List<RagSourceVO>> candidatePools = new ArrayList<>();
+        candidatePools.add(keywordHits);
+        candidatePools.add(vectorHits);
+        String keywordDebug = keywordBaseline.debugInfo();
+        long baselineElapsedMs = elapsedMs(baselineStartedNanos);
+        List<RagSourceVO> baseline = rrfFuse(vectorHits, keywordHits, candidateK);
+        boolean deterministicCoverageFastPath = hasDeterministicFacetCoverage(
+                normalizedQuestion, baseline);
 
         boolean preRewrite = rewriteEnabled
                 && queryRewriteService.shouldRewriteBeforeRetrieval(normalizedQuestion);
         QueryRewritePlanVO rewritePlan;
-        if (preRewrite) {
+        if (preRewrite && !deterministicCoverageFastPath) {
             rewritePlan = queryRewriteService.rewrite(normalizedQuestion, "complex_or_contextual_query");
         } else if (rewriteEnabled && baseline.isEmpty()) {
             rewritePlan = queryRewriteService.rewrite(normalizedQuestion, "initial_no_hit");
-        } else if (rewriteEnabled && isLowConfidence(vectorHits, keywordHits)) {
+        } else if (rewriteEnabled && isLowConfidence(vectorHits, keywordHits)
+                && !deterministicCoverageFastPath) {
             rewritePlan = queryRewriteService.rewrite(normalizedQuestion, "initial_low_confidence");
         } else {
             rewritePlan = queryRewriteService.originalOnly(
-                    normalizedQuestion, rewriteEnabled ? "fast_path" : "request_disabled");
+                    normalizedQuestion,
+                    !rewriteEnabled ? "request_disabled"
+                            : deterministicCoverageFastPath ? "deterministic_coverage_fast_path" : "fast_path");
         }
 
         List<RagSourceVO> fused = baseline;
         int totalVectorHits = vectorHits.size();
         int totalKeywordHits = keywordHits.size();
+        long branchRetrievalElapsedMs = 0L;
         if (rewritePlan.isRewriteUsed() && !ingestionProperties.getQueryRewrite().isShadowMode()) {
+            long branchStartedNanos = System.nanoTime();
             List<WeightedRanking> rankings = new ArrayList<>();
             rankings.add(new WeightedRanking(vectorHits, 1.0));
             rankings.add(new WeightedRanking(keywordHits, 1.0));
@@ -121,24 +159,61 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
             int baselineCandidates = vectorHits.size() + keywordHits.size();
             int remainingBudget = Math.max(1, totalBudget - baselineCandidates);
             int perBranchK = Math.max(1, remainingBudget / Math.max(1, branchChannels));
+            List<BranchFuture> branchFutures = new ArrayList<>();
             for (QueryRewritePlanVO.WeightedQuery branch : branches) {
+                branchFutures.add(new BranchFuture(
+                        branch,
+                        retrievalExecutor.submit(() -> vectorChannel(branch.query(), perBranchK, filter)),
+                        branch.keywordEnabled()
+                                ? retrievalExecutor.submit(() -> keywordChannel(branch.query(), perBranchK, filter))
+                                : null));
+            }
+            for (BranchFuture branchFuture : branchFutures) {
+                QueryRewritePlanVO.WeightedQuery branch = branchFuture.branch();
                 List<RagSourceVO> branchVector = applyGovernance(
-                        doVectorSearch(branch.query(), perBranchK, filter));
+                        awaitChannel(branchFuture.vectorFuture(), "vector_" + branch.type()).sources(),
+                        governanceDocCache);
                 rankings.add(new WeightedRanking(branchVector, branch.weight()));
+                candidatePools.add(branchVector);
                 totalVectorHits += branchVector.size();
                 if (branch.keywordEnabled()) {
                     List<RagSourceVO> branchKeyword = applyGovernance(
-                            keywordSearchService.searchByKeyword(branch.query(), perBranchK, filter));
+                            awaitChannel(branchFuture.keywordFuture(), "keyword_" + branch.type()).sources(),
+                            governanceDocCache);
                     rankings.add(new WeightedRanking(branchKeyword, branch.weight()));
+                    candidatePools.add(branchKeyword);
                     totalKeywordHits += branchKeyword.size();
                 }
             }
-            fused = weightedRrfFuse(rankings, normalizedTopK);
+            fused = weightedRrfFuse(rankings, candidateK);
+            branchRetrievalElapsedMs = elapsedMs(branchStartedNanos);
             if (baseline.isEmpty() && !fused.isEmpty()) {
                 meterRegistry.counter("rag_retrieval_no_hit_recovery_total").increment();
             }
         }
 
+        fused = preserveEvidenceCandidates(
+                fused, candidatePools, retrievalEvidencePlan, maxCandidateK);
+
+        long rerankStartedNanos = System.nanoTime();
+        KnowledgeRerankResult rerankResult;
+        long rerankElapsedMs;
+        try {
+            rerankResult = knowledgeReranker.rerank(normalizedQuestion, fused, normalizedTopK);
+        } finally {
+            long rerankNanos = System.nanoTime() - rerankStartedNanos;
+            meterRegistry.timer("rag.retrieval.rerank").record(rerankNanos, TimeUnit.NANOSECONDS);
+            rerankElapsedMs = TimeUnit.NANOSECONDS.toMillis(rerankNanos);
+        }
+        meterRegistry.summary("rag.retrieval.rerank.candidates")
+                .record(rerankResult.candidateCount());
+        meterRegistry.summary("rag.retrieval.selected.topk")
+                .record(rerankResult.sources().size());
+        meterRegistry.summary("rag.retrieval.facet.coverage")
+                .record(rerankResult.facetCoverage());
+        meterRegistry.summary("rag.retrieval.evidence.coverage")
+                .record(rerankResult.evidenceCoverage());
+        fused = rerankResult.sources();
         KnowledgeSearchResponseVO vo = buildResponse(normalizedQuestion, normalizedTopK, fused, RetrievalMode.HYBRID);
         vo.setVectorHitCount(totalVectorHits);
         vo.setKeywordHitCount(totalKeywordHits);
@@ -147,6 +222,20 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
         vo.setRewriteTrigger(rewritePlan.getTriggerReason());
         vo.setRewritePlan(rewritePlan);
         vo.setRewriteElapsedMs(rewritePlan.getElapsedMs());
+        vo.setRerankUsed(rerankResult.rerankUsed());
+        vo.setRerankCandidateCount(rerankResult.candidateCount());
+        vo.setSelectedTopK(fused.size());
+        vo.setDynamicTopKApplied(rerankResult.dynamicTopKApplied());
+        vo.setQueryFacets(rerankResult.queryFacets());
+        vo.setCoveredFacets(rerankResult.coveredFacets());
+        vo.setFacetCoverage(rerankResult.facetCoverage());
+        vo.setEvidencePlan(rerankResult.evidencePlan());
+        vo.setCoveredEvidence(rerankResult.coveredEvidence());
+        vo.setEvidenceCoverage(rerankResult.evidenceCoverage());
+        vo.setBaselineElapsedMs(baselineElapsedMs);
+        vo.setBranchRetrievalElapsedMs(branchRetrievalElapsedMs);
+        vo.setRerankElapsedMs(rerankElapsedMs);
+        vo.setRetrievalElapsedMs(elapsedMs(retrievalStartedNanos));
         vo.setDebugInfo("vectorHits=" + totalVectorHits
                 + ",keywordHits=" + totalKeywordHits
                 + ",rrfK=" + RRF_K
@@ -154,8 +243,53 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
                 + ",rewriteUsed=" + vo.getRewriteUsed()
                 + ",rewriteShadow=" + ingestionProperties.getQueryRewrite().isShadowMode()
                 + ",rewriteTrigger=" + rewritePlan.getTriggerReason()
+                + ",rerankUsed=" + rerankResult.rerankUsed()
+                + ",rerankCandidates=" + rerankResult.candidateCount()
+                + ",selectedTopK=" + fused.size()
+                + ",dynamicTopK=" + rerankResult.dynamicTopKApplied()
+                + ",queryFacets=" + rerankResult.queryFacets()
+                + ",coveredFacets=" + rerankResult.coveredFacets()
+                + ",facetCoverage=" + String.format(java.util.Locale.ROOT, "%.3f", rerankResult.facetCoverage())
+                + ",evidencePlan=" + rerankResult.evidencePlan()
+                + ",coveredEvidence=" + rerankResult.coveredEvidence()
+                + ",evidenceCoverage=" + String.format(java.util.Locale.ROOT, "%.3f", rerankResult.evidenceCoverage())
+                + ",retrievalElapsedMs=" + vo.getRetrievalElapsedMs()
+                + ",baselineElapsedMs=" + baselineElapsedMs
+                + ",branchElapsedMs=" + branchRetrievalElapsedMs
+                + ",rerankElapsedMs=" + rerankElapsedMs
                 + "," + keywordDebug);
         return vo;
+    }
+
+    private ChannelHits vectorChannel(String query, int topK, KnowledgeSearchFilterDTO filter) {
+        long startedNanos = System.nanoTime();
+        return new ChannelHits(doVectorSearch(query, topK, filter), "", elapsedMs(startedNanos));
+    }
+
+    private ChannelHits keywordChannel(String query, int topK, KnowledgeSearchFilterDTO filter) {
+        long startedNanos = System.nanoTime();
+        List<RagSourceVO> sources = keywordSearchService.searchByKeyword(query, topK, filter);
+        return new ChannelHits(sources, keywordSearchService.getLastDebugInfo(), elapsedMs(startedNanos));
+    }
+
+    private ChannelHits awaitChannel(CompletableFuture<ChannelHits> future, String channel) {
+        if (future == null) {
+            return ChannelHits.empty("disabled");
+        }
+        try {
+            return future.get(
+                    Math.max(100L, ingestionProperties.getRetrieval().getParallelTimeoutMs()),
+                    TimeUnit.MILLISECONDS);
+        } catch (Exception ex) {
+            future.cancel(true);
+            log.warn("knowledge retrieval channel failed, channel={}, reason={}", channel, ex.getMessage());
+            meterRegistry.counter("rag_retrieval_channel_failure_total", "channel", channel).increment();
+            return ChannelHits.empty(ex.getClass().getSimpleName());
+        }
+    }
+
+    private long elapsedMs(long startedNanos) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedNanos);
     }
 
     private boolean isLowConfidence(List<RagSourceVO> vectorHits, List<RagSourceVO> keywordHits) {
@@ -169,6 +303,52 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
                 .max()
                 .orElse(Double.NEGATIVE_INFINITY);
         return bestVectorScore < ingestionProperties.getQueryRewrite().getLowConfidenceThreshold();
+    }
+
+    private boolean hasDeterministicFacetCoverage(String query, List<RagSourceVO> baseline) {
+        if (baseline == null || baseline.isEmpty()) {
+            return false;
+        }
+        KnowledgeEvidencePlanner.Plan evidencePlan = KnowledgeEvidencePlanner.plan(query);
+        Set<String> queryFacets = KnowledgeQueryConcepts.coverageTargets(evidencePlan.normalizedConcepts());
+        if (queryFacets.isEmpty()) {
+            return false;
+        }
+        Set<String> coveredFacets = new LinkedHashSet<>();
+        Set<String> coveredEvidence = new LinkedHashSet<>();
+        for (RagSourceVO source : baseline) {
+            if (source == null) {
+                continue;
+            }
+            String corpus = String.valueOf(source.getDocTitle()) + " " + String.valueOf(source.getSnippet());
+            Set<String> candidateConcepts = KnowledgeQueryConcepts.detect(corpus);
+            for (String candidateConcept : candidateConcepts) {
+                if (queryFacets.contains(candidateConcept)) {
+                    coveredFacets.add(candidateConcept);
+                }
+            }
+            for (KnowledgeEvidencePlanner.Requirement requirement : evidencePlan.requirements()) {
+                if (requirement.matches(candidateConcepts)) {
+                    coveredEvidence.add(requirement.id());
+                }
+            }
+        }
+        boolean facetCovered = KnowledgeQueryConcepts.coverageRatio(queryFacets, coveredFacets)
+                >= ingestionProperties.getRetrieval().getMinFacetCoverage();
+        if (!ingestionProperties.getRetrieval().isEvidencePlanEnabled()
+                || evidencePlan.requirements().isEmpty()) {
+            return facetCovered;
+        }
+        double totalWeight = evidencePlan.requirements().stream()
+                .mapToDouble(KnowledgeEvidencePlanner.Requirement::weight)
+                .sum();
+        double coveredWeight = evidencePlan.requirements().stream()
+                .filter(requirement -> coveredEvidence.contains(requirement.id()))
+                .mapToDouble(KnowledgeEvidencePlanner.Requirement::weight)
+                .sum();
+        double evidenceCoverage = totalWeight <= 0.0D ? 1.0D : coveredWeight / totalWeight;
+        return facetCovered
+                && evidenceCoverage >= ingestionProperties.getRetrieval().getMinEvidenceCoverage();
     }
 
     private KnowledgeSearchResponseVO searchVectorOnly(String normalizedQuestion, int normalizedTopK, KnowledgeSearchFilterDTO filter) {
@@ -277,7 +457,84 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
                 .toList();
     }
 
+    private List<RagSourceVO> preserveEvidenceCandidates(
+            List<RagSourceVO> fused,
+            List<List<RagSourceVO>> candidatePools,
+            KnowledgeEvidencePlanner.Plan evidencePlan,
+            int maximumCandidates) {
+        if (evidencePlan == null || evidencePlan.requirements().isEmpty()) {
+            return fused == null ? List.of() : fused;
+        }
+        List<RagSourceVO> safeFused = fused == null ? List.of() : fused;
+        double retrievalFloor = safeFused.stream()
+                .map(RagSourceVO::getScore)
+                .filter(java.util.Objects::nonNull)
+                .filter(Double::isFinite)
+                .filter(score -> score > 0.0D)
+                .mapToDouble(Double::doubleValue)
+                .min()
+                .orElse(0.001D);
+        Map<String, RagSourceVO> protectedByKey = new LinkedHashMap<>();
+        for (KnowledgeEvidencePlanner.Requirement requirement : evidencePlan.requirements()) {
+            RagSourceVO candidate = firstEvidenceCandidate(candidatePools, requirement);
+            if (candidate == null) {
+                continue;
+            }
+            String key = dedupKey(candidate);
+            if (!StringUtils.hasText(key) || protectedByKey.containsKey(key)) {
+                continue;
+            }
+            RagSourceVO protectedCandidate = copySource(candidate);
+            protectedCandidate.setScore(retrievalFloor);
+            protectedByKey.put(key, protectedCandidate);
+        }
+        for (RagSourceVO source : safeFused) {
+            String key = dedupKey(source);
+            if (StringUtils.hasText(key)) {
+                protectedByKey.put(key, source);
+            }
+        }
+        return protectedByKey.values().stream()
+                .limit(Math.max(1, maximumCandidates))
+                .toList();
+    }
+
+    private RagSourceVO firstEvidenceCandidate(
+            List<List<RagSourceVO>> candidatePools,
+            KnowledgeEvidencePlanner.Requirement requirement) {
+        if (candidatePools == null) {
+            return null;
+        }
+        for (List<RagSourceVO> pool : candidatePools) {
+            if (pool == null) {
+                continue;
+            }
+            for (RagSourceVO source : pool) {
+                if (source == null) {
+                    continue;
+                }
+                String corpus = String.valueOf(source.getDocTitle()) + " "
+                        + String.valueOf(source.getSnippet());
+                if (requirement.matches(KnowledgeQueryConcepts.detect(corpus))) {
+                    return source;
+                }
+            }
+        }
+        return null;
+    }
+
     private record WeightedRanking(List<RagSourceVO> sources, double weight) {
+    }
+
+    private record BranchFuture(QueryRewritePlanVO.WeightedQuery branch,
+                                CompletableFuture<ChannelHits> vectorFuture,
+                                CompletableFuture<ChannelHits> keywordFuture) {
+    }
+
+    private record ChannelHits(List<RagSourceVO> sources, String debugInfo, long elapsedMs) {
+        private static ChannelHits empty(String debugInfo) {
+            return new ChannelHits(List.of(), debugInfo, 0L);
+        }
     }
 
     private String dedupKey(RagSourceVO src) {
@@ -310,6 +567,10 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
             hit.setEffectiveTo(source.getEffectiveTo());
             hit.setDocStatus(source.getDocStatus());
             hit.setDisabledReason(source.getDisabledReason());
+            hit.setLogicalKnowledgeId(source.getLogicalKnowledgeId());
+            hit.setRetrievalScore(source.getRetrievalScore());
+            hit.setRerankScore(source.getRerankScore());
+            hit.setRerankReason(source.getRerankReason());
             hits.add(hit);
         }
         return hits;
@@ -330,21 +591,46 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
         out.setEffectiveTo(source.getEffectiveTo());
         out.setDocStatus(source.getDocStatus());
         out.setDisabledReason(source.getDisabledReason());
+        out.setIndexVersion(source.getIndexVersion());
+        out.setLogicalKnowledgeId(source.getLogicalKnowledgeId());
+        out.setRetrievalScore(source.getRetrievalScore());
+        out.setRerankScore(source.getRerankScore());
+        out.setRerankReason(source.getRerankReason());
         return out;
     }
 
     private List<RagSourceVO> applyGovernance(List<RagSourceVO> sources) {
+        return applyGovernance(sources, new HashMap<>());
+    }
+
+    private List<RagSourceVO> applyGovernance(List<RagSourceVO> sources,
+                                               Map<Long, KnowledgeDoc> docCache) {
         if (sources == null || sources.isEmpty()) {
             return Collections.emptyList();
         }
+        Set<Long> missingDocIds = new LinkedHashSet<>();
+        for (RagSourceVO source : sources) {
+            if (source != null && source.getDocId() != null && !docCache.containsKey(source.getDocId())) {
+                missingDocIds.add(source.getDocId());
+            }
+        }
+        if (!missingDocIds.isEmpty()) {
+            missingDocIds.forEach(docId -> docCache.put(docId, null));
+            List<KnowledgeDoc> docs = knowledgeDocMapper.selectBatchIds(missingDocIds);
+            if (docs != null) {
+                docs.stream()
+                        .filter(java.util.Objects::nonNull)
+                        .filter(doc -> doc.getId() != null)
+                        .forEach(doc -> docCache.put(doc.getId(), doc));
+            }
+        }
         LocalDateTime now = LocalDateTime.now();
-        Map<Long, KnowledgeDoc> docCache = new HashMap<>();
         List<RagSourceVO> out = new ArrayList<>();
         for (RagSourceVO source : sources) {
             if (source == null) {
                 continue;
             }
-            KnowledgeDoc doc = loadDoc(source.getDocId(), docCache);
+            KnowledgeDoc doc = source.getDocId() == null ? null : docCache.get(source.getDocId());
             if (doc == null) {
                 continue;
             }
@@ -360,22 +646,24 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
         return out;
     }
 
-    private KnowledgeDoc loadDoc(Long docId, Map<Long, KnowledgeDoc> cache) {
-        if (docId == null) {
-            return null;
-        }
-        if (!cache.containsKey(docId)) {
-            cache.put(docId, knowledgeDocMapper.selectById(docId));
-        }
-        return cache.get(docId);
-    }
-
     private boolean isSearchable(KnowledgeDoc doc, LocalDateTime now) {
         if (doc == null) {
             return false;
         }
         String status = doc.getStatus();
         if (KnowledgeDocStatus.DISABLED.name().equalsIgnoreCase(status)) {
+            return false;
+        }
+        if (!KnowledgeDocStatus.ACTIVE.name().equalsIgnoreCase(status)) {
+            boolean legacyDraft = KnowledgeDocStatus.DRAFT.name().equalsIgnoreCase(status)
+                    && !Boolean.TRUE.equals(doc.getLifecycleManaged())
+                    && ingestionProperties.getLifecycle().isAllowLegacyDrafts();
+            if (!legacyDraft) {
+                return false;
+            }
+            meterRegistry.counter("rag_retrieval_legacy_draft_total").increment();
+        } else if (Boolean.TRUE.equals(doc.getLifecycleManaged())
+                && !StringUtils.hasText(doc.getActiveIndexVersion())) {
             return false;
         }
         if (doc.getEffectiveFrom() != null && doc.getEffectiveFrom().isAfter(now)) {
@@ -400,6 +688,7 @@ public class KnowledgeSearchServiceImpl implements KnowledgeSearchService {
         source.setEffectiveTo(doc.getEffectiveTo() == null ? source.getEffectiveTo() : doc.getEffectiveTo().toString());
         source.setDocStatus(firstText(doc.getStatus(), source.getDocStatus()));
         source.setDisabledReason(firstText(doc.getDisabledReason(), source.getDisabledReason()));
+        source.setLogicalKnowledgeId(firstText(doc.getLogicalKnowledgeId(), source.getLogicalKnowledgeId()));
     }
 
     private String firstText(String primary, String fallback) {

@@ -16,4 +16,10 @@ public class ControlledOperationPlanRequestDTO {
     private String reason;
 
     private String traceId;
+
+    /** Optional alert/event that caused this controlled operation. */
+    private Long sourceEventId;
+
+    /** Optional diagnosis fingerprint used for stable plan idempotency. */
+    private String diagnosisHash;
 }

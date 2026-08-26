@@ -12,6 +12,21 @@ The original root-level dataset files were removed during cleanup, so these file
 - `agent_eval_dataset.json`: publish-assist Knowledge Agent orchestration cases.
 - `react_agent_eval_dataset.json`: ReAct / Graph tool selection and permission cases.
 - `hybrid_planner_eval_dataset.json`: hybrid Planner, bounded Replan, permission stability, and DAG validity cases.
+- `deepeval_agent_eval_dataset.json`: unified DIRECT/ReAct/DAG cases consumed by DeepEval tool correctness and permission metrics.
+- `ragas_knowledge_catalog.json`: stable logical knowledge catalog used to normalize duplicate and reindexed physical documents.
+- `ragas_rag_smoke_dataset.json`: 10 fast online smoke cases.
+- `ragas_rag_regression_dataset.json`: 50 visible release-gate regression cases.
+- `ragas_rag_holdout_dataset.json`: 15 sealed generalization cases; never tune retrieval rules directly against this file.
+- `ragas_rag_development_v2_dataset.json`: 24 visible development cases abstracted from Holdout v1 failure categories without copying its questions.
+- `ragas_rag_holdout_v2_dataset.json`: 20 newly authored sealed cases used once after Development v2 and Regression passed; its first result remains frozen.
+- `ragas_rag_development_v3_dataset.json`: 30 visible cases derived only from Holdout v2 aggregate failure categories, covering transaction normalization, multi-hop evidence planning, and refusal grounding.
+- `ragas_rag_holdout_v3_dataset.json`: 25 sealed generalization cases; SHA-256 and the one-time result are recorded in `ragas_rag_holdout_v3_manifest.json`.
+- `ragas_rag_development_v4_dataset.json`: 30 visible cases derived only from frozen Holdout v3 aggregate failure types; it covers transaction semantics, multi-hop evidence, refusal grounding, paraphrases, and noisy questions without copying sealed questions.
+- `ragas_rag_holdout_v4_dataset.json`: 30 newly authored blind cases created only after the v4 implementation/Judge freeze; every case contains a complete `reference` answer and atomic `referenceFacts`.
+- `ragas_rag_development_v5_dataset.json`: 32 visible cases derived only from the frozen Holdout v4 aggregate weak groups. It contains 8 cases each for condition disclosure, medium rewrites, multi-hop evidence, and paraphrases, with complete `reference` and `referenceFacts` fields and no copied sealed questions.
+- `ragas_release_freeze_v4_manifest.json`: SHA-256 freeze of the RAG implementation, configuration, Judge protocol, Gold catalog, Development v4, regression data, and pre-Holdout reports.
+- `ragas_rag_holdout_v4_manifest.json`: sealed Holdout v4 hash, one-run policy, frozen implementation hash, and immutable first-run result.
+- `ragas_rag_eval_dataset.json`: legacy compact RAGAS dataset retained for compatibility.
 - `memory_priority_eval_dataset.json`: L1/L2/L3 memory and memory graph evaluation cases.
 - `harness_eval_dataset.json`: Tool Execution Harness retry, timeout, fallback, snapshot, and permission cases.
 - `aiops_eval_dataset.json`: AIOps Agent, Prometheus, Graph, and permission cases.
@@ -34,6 +49,17 @@ python tools/rag_chat_eval.py --base-url http://localhost:8080 --bearer-token <J
 python tools/agent_eval.py --base-url http://localhost:8080 --bearer-token <JWT>
 python tools/react_agent_eval.py --base-url http://localhost:8080 --bearer-token <JWT>
 python tools/hybrid_planner_eval.py --base-url http://localhost:8080 --bearer-token <INTERNAL_JWT>
+.\.venv-deepeval\Scripts\python.exe tools/deepeval_agent_eval.py --base-url http://localhost:8080 --internal-bearer-token <INTERNAL_JWT> --user-bearer-token <USER_JWT>
+.\.venv-ragas64\Scripts\python.exe tools/ragas_dataset_validate.py
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_smoke_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_smoke_report.md
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_regression_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_regression_report.md --concurrency 2
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_holdout_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_holdout_report.md --concurrency 2 --summary-only
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_development_v2_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_development_v2_report.md --concurrency 2
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_holdout_v2_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_holdout_v2_report.md --concurrency 2 --summary-only
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_development_v3_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_development_v3_report.md --concurrency 2
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_development_v4_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_development_v4_report.md --concurrency 2
+.\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_development_v5_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_development_v5_report.md --concurrency 2
+.\.venv-ragas64\Scripts\python.exe tools/ragas_release_freeze.py verify
 python tools/memory_priority_eval.py --base-url http://localhost:8080 --bearer-token <JWT>
 python tools/harness_eval.py --base-url http://localhost:8080 --bearer-token <INTERNAL_JWT>
 python tools/aiops_eval.py --base-url http://localhost:8080 --bearer-token <INTERNAL_JWT>
@@ -56,3 +82,14 @@ python tools/query_rewrite_eval.py --base-url http://localhost:8080 --bearer-tok
 
 - `token_governance_eval_dataset.json`：验证场景预算、低优先级上下文裁剪、问题/证据保留与输出预算配置。
 - 对应脚本：`tools/token_governance_eval.py`。该评测只调用预算预览接口，不消耗模型 Token。
+
+## RAG 精度与生命周期
+
+- RAGAS Gold 使用稳定逻辑知识 ID，不直接依赖会因 reindex 变化的物理 `docId`。
+- `tools/ragas_rag_eval.py` 默认门槛为 ID Context Recall >= 0.90、ID Context Precision >= 0.55、单例完整召回通过率 >= 0.90、Retrieval P95 <= 4s 且技术错误数为 0。
+- 每轮执行顺序固定为 Smoke/Development -> Regression -> 新 Holdout；只有前两级通过后才执行新 Holdout，`--summary-only` 隐藏保留集逐例输出。Holdout 首次结果必须冻结，不能在同一版本上反复调参。
+- `tools/knowledge_lifecycle_eval.py` 只读检查逻辑知识修订、ACTIVE 唯一性、内容哈希重复和 legacy 迁移进度。
+- Development v4 最终冻结候选通过：Faithfulness `0.9167`、Answer Relevancy `0.8500`、LLM Context Precision `0.9061`、LLM Context Recall `0.8889`，E2E P95 `1.71s`；50 条 Regression 同步通过。
+- Holdout v4 已按冻结协议仅盲测一次并封存为 `RISK`：生成质量与性能门禁通过，但 ID Context Recall `0.8722`、逐题完整召回通过率 `0.8000` 未达到 `0.90` 门槛。不得针对 Holdout v4 单题继续修改实现或重跑。
+- Development v5 冻结候选通过：32/32 完整召回，ID Context Recall `1.0000`、ID Context Precision `0.6599`、E2E P95 `2.14s`；50 条 Regression 同步达到 50/50 完整召回、ID Context Recall `1.0000`、E2E P95 `1.48s`。本轮未启用独立 LLM Judge，这些指标只证明检索上下文与性能门禁通过。
+- 下一步必须先冻结 v5 实现，再创建来源独立的 Holdout v5 并仅盲测一次；不得回看 Holdout v4 单题继续调参，也不能用 Development v5 成绩代替泛化结论。

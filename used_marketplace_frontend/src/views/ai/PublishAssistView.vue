@@ -35,6 +35,33 @@ type PublishAssistResult = {
     sourceTrustLevel?: string
     score?: number
   }>
+  retrievals?: Array<{
+    round?: number
+    stage?: string
+    purpose?: string
+    query?: string
+    sourceType?: string
+    requestedTopK?: number
+    hitCount?: number
+    retrievalMode?: string
+    vectorHitCount?: number
+    keywordHitCount?: number
+    rewriteUsed?: boolean
+    rewriteTrigger?: string
+    rerankUsed?: boolean
+    rerankCandidateCount?: number
+    selectedTopK?: number
+    dynamicTopKApplied?: boolean
+    rewriteElapsedMs?: number
+    retrievalElapsedMs?: number
+    branchRetrievalElapsedMs?: number
+    rerankElapsedMs?: number
+    facetCoverage?: number
+    evidenceCoverage?: number
+    outcome?: string
+    fallbackSourceUsed?: boolean
+    debugInfo?: string
+  }>
 }
 
 const form = reactive({
@@ -100,6 +127,7 @@ const warnings = computed(() => {
 })
 const evidence = computed(() => result.value?.riskEvidence || [])
 const sources = computed(() => result.value?.sources || [])
+const retrievals = computed(() => result.value?.retrievals || [])
 const trace = computed(() => result.value?.trace || [])
 const tags = computed(() => optimize.value.tags || [])
 const decisionText = computed(() => {
@@ -206,6 +234,43 @@ function sourceTitle(source: any) {
 function sourceMeta(source: any) {
   const parts = [source?.sourceType, source?.sourceTrustLevel, source?.score != null ? `score=${Number(source.score).toFixed(3)}` : '']
   return parts.filter(Boolean).join(' · ')
+}
+
+function retrievalModeText(mode?: string) {
+  const labels: Record<string, string> = {
+    hybrid: '混合检索',
+    'vector-only': '向量检索',
+    'keyword-only': '关键词检索',
+  }
+  return labels[mode || ''] || mode || '未知模式'
+}
+
+function retrievalStageText(stage?: string) {
+  const labels: Record<string, string> = {
+    optimize: '文案优化',
+    risk: '风险评估',
+    pricing: '价格建议',
+    guardrail: '入口防护',
+  }
+  return labels[stage || ''] || stage || '检索'
+}
+
+function retrievalOutcomeText(item: NonNullable<PublishAssistResult['retrievals']>[number]) {
+  const hitCount = item.hitCount ?? 0
+  const vectorHits = item.vectorHitCount ?? 0
+  const keywordHits = item.keywordHitCount ?? 0
+  const fallbackText = item.fallbackSourceUsed ? '；未命中时已补充内置规则来源' : ''
+  return `命中 ${hitCount} 条；向量 ${vectorHits} 条，关键词 ${keywordHits} 条${fallbackText}`
+}
+
+function retrievalMeta(item: NonNullable<PublishAssistResult['retrievals']>[number]) {
+  const values = [
+    item.sourceType ? `过滤：${item.sourceType}` : '',
+    item.rewriteUsed ? '已改写' : '未改写',
+    item.rerankUsed ? `已重排${item.rerankCandidateCount != null ? `(${item.rerankCandidateCount})` : ''}` : '',
+    item.retrievalElapsedMs != null ? `${item.retrievalElapsedMs}ms` : '',
+  ]
+  return values.filter(Boolean).join(' · ')
 }
 
 onMounted(loadAssistPrefill)
@@ -324,8 +389,24 @@ onMounted(loadAssistPrefill)
             </div>
           </section>
 
+          <section v-if="auth.isInternal && retrievals.length" class="result-block">
+            <h4>知识检索链路</h4>
+            <div class="retrieval-list">
+              <article v-for="item in retrievals" :key="`${item.round}-${item.purpose}-${item.query}`" class="retrieval-card">
+                <div class="mini-card-title">
+                  <strong>{{ retrievalStageText(item.stage) }} · {{ item.purpose || '知识检索' }}</strong>
+                  <span class="tag">第{{ item.round || 1 }}轮 · {{ retrievalModeText(item.retrievalMode) }}</span>
+                </div>
+                <p>{{ retrievalOutcomeText(item) }}</p>
+                <small>{{ retrievalMeta(item) }}</small>
+                <small v-if="item.query" class="retrieval-query">查询：{{ item.query }}</small>
+                <small v-if="item.debugInfo" class="retrieval-debug">{{ item.debugInfo }}</small>
+              </article>
+            </div>
+          </section>
+
           <section v-if="sources.length" class="result-block">
-            <h4>参考规则</h4>
+            <h4>参考知识</h4>
             <div class="source-list">
               <article v-for="source in sources" :key="`${source.docId}-${source.chunkId}`" class="source-card">
                 <strong>{{ sourceTitle(source) }}</strong>
@@ -482,13 +563,15 @@ onMounted(loadAssistPrefill)
 }
 
 .evidence-list,
-.source-list {
+.source-list,
+.retrieval-list {
   display: grid;
   gap: 10px;
 }
 
 .mini-card,
-.source-card {
+.source-card,
+.retrieval-card {
   background: #fafafa;
   border: 1px solid rgba(17, 24, 39, 0.1);
   border-radius: 8px;
@@ -512,6 +595,20 @@ onMounted(loadAssistPrefill)
 .mini-card small,
 .source-card small {
   color: #6b7280;
+}
+
+.retrieval-card p {
+  color: #374151;
+  line-height: 1.6;
+  margin: 8px 0 4px;
+}
+
+.retrieval-query,
+.retrieval-debug {
+  display: block;
+  line-height: 1.5;
+  margin-top: 6px;
+  overflow-wrap: anywhere;
 }
 
 .ghost-btn {
