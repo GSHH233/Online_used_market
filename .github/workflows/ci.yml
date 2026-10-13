@@ -38,7 +38,9 @@ jobs:
       - name: Frontend build
         working-directory: used_marketplace_frontend
         run: |
-          npm ci
+          npm run check:lock
+          npm run test:lock
+          npm ci --include=optional
           npm run build
 
       - name: Set up Python

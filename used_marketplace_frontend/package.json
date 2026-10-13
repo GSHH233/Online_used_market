@@ -4,6 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "check:lock": "node scripts/check-native-lock.mjs",
+    "test:lock": "node --test scripts/check-native-lock.test.mjs",
     "dev": "vite",
     "build": "vue-tsc -b && vite build",
     "preview": "vite preview"
