@@ -28,8 +28,10 @@
     "question": "先查知识库规则，再结合日志定位商品发布失败原因",
     "maxSteps": 5,
     "expectedTools": ["knowledge_search", "log_query"],
-    "expectedPlanner": "RULE_FAST_PATH",
-    "maxReplanRounds": 2
+    "allowOnlyExpectedTools": true,
+    "expectedPlanner": "LLM_STRUCTURED",
+    "maxReplanRounds": 2,
+    "requireLiveLlm": true
   },
   {
     "caseId": "PLANNER-004",
@@ -38,9 +40,11 @@
     "question": "同时检查接口 P95 指标和错误日志，综合判断延迟原因",
     "maxSteps": 6,
     "expectedTools": ["prometheus_query", "log_query"],
-    "expectedPlanner": "RULE_FAST_PATH",
+    "allowOnlyExpectedTools": true,
+    "expectedPlanner": "LLM_STRUCTURED",
     "maxReplanRounds": 2,
-    "requireGraph": true
+    "requireGraph": true,
+    "requireLiveLlm": true
   },
   {
     "caseId": "PLANNER-005",
@@ -49,6 +53,7 @@
     "question": "检查数据库知识文档状态，并结合知识库规则给出结论",
     "maxSteps": 6,
     "expectedTools": ["mysql_read", "knowledge_search"],
+    "allowOnlyExpectedTools": true,
     "expectedPlanner": "RULE_FAST_PATH",
     "maxReplanRounds": 2,
     "requireGraph": true
@@ -86,5 +91,66 @@
     "forbidTools": ["mysql_read", "log_query", "prometheus_query", "vector_debug"],
     "expectedPlanner": "RULE_FAST_PATH",
     "maxReplanRounds": 2
+  },
+  {
+    "caseId": "PLANNER-009",
+    "engine": "react",
+    "mode": "INTERNAL",
+    "question": "先检查数据库中的知识文档状态，再查询知识库规则，综合定位商品发布失败根因",
+    "maxSteps": 5,
+    "expectedTools": ["mysql_read", "knowledge_search"],
+    "allowOnlyExpectedTools": true,
+    "expectedPlanner": "LLM_STRUCTURED",
+    "maxReplanRounds": 2,
+    "requireLiveLlm": true
+  },
+  {
+    "caseId": "PLANNER-010",
+    "engine": "graph",
+    "mode": "INTERNAL",
+    "question": "先查询 Prometheus P95 指标，再检查错误日志，最后综合定位接口延迟根因",
+    "maxSteps": 6,
+    "expectedTools": ["prometheus_query", "log_query"],
+    "allowOnlyExpectedTools": true,
+    "expectedPlanner": "LLM_STRUCTURED",
+    "maxReplanRounds": 2,
+    "requireGraph": true,
+    "requireLiveLlm": true
+  },
+  {
+    "caseId": "PLANNER-011",
+    "engine": "react",
+    "mode": "INTERNAL",
+    "question": "检查系统错误率指标",
+    "maxSteps": 3,
+    "expectedTools": ["prometheus_query", "log_query"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "minReplanRounds": 1,
+    "maxReplanRounds": 2,
+    "requireReplan": true
+  },
+  {
+    "caseId": "PLANNER-012",
+    "engine": "react",
+    "mode": "INTERNAL",
+    "question": "检查系统错误率指标",
+    "maxSteps": 1,
+    "expectedTools": ["prometheus_query"],
+    "forbidTools": ["log_query"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "maxReplanRounds": 0
+  },
+  {
+    "caseId": "PLANNER-013",
+    "engine": "graph",
+    "mode": "INTERNAL",
+    "question": "检查系统错误率指标",
+    "maxSteps": 3,
+    "expectedTools": ["prometheus_query", "log_query"],
+    "expectedPlanner": "RULE_FAST_PATH",
+    "minReplanRounds": 1,
+    "maxReplanRounds": 2,
+    "requireGraph": true,
+    "requireReplan": true
   }
 ]

@@ -58,6 +58,7 @@ public class LogSpecialistAgent implements AiopsSpecialistAgent {
             attributes.put("traceId", traceId);
             attributes.put("service", service);
             attributes.put("windowMinutes", context.effectiveWindowMinutes());
+            attributes.put("findingCode", findingCode(result));
             String target = "traceId=" + traceId + ",service=" + service
                     + ",windowMinutes=" + context.effectiveWindowMinutes();
             Evidence evidence = Evidence.observed(
@@ -92,5 +93,21 @@ public class LogSpecialistAgent implements AiopsSpecialistAgent {
         return ex.getMessage() == null || ex.getMessage().isBlank()
                 ? ex.getClass().getSimpleName()
                 : ex.getMessage();
+    }
+
+    private String findingCode(ToolQueryResultVO result) {
+        String text = String.valueOf(result.getSummary()) + " " + String.valueOf(result.getRows());
+        String normalized = text.toLowerCase();
+        if (normalized.contains("database") || normalized.contains("jdbc")
+                || normalized.contains("sql") || normalized.contains("connection timeout")) {
+            return "DB_TIMEOUT";
+        }
+        if (normalized.contains("connection refused") || normalized.contains("unavailable")) {
+            return "CONNECTION_REFUSED";
+        }
+        if (normalized.contains("outofmemory") || normalized.contains("oom")) {
+            return "OOM";
+        }
+        return "APP_ERROR";
     }
 }

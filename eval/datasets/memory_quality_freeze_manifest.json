@@ -1,0 +1,21 @@
+{
+  "requirementId": "MEM-AC-006",
+  "frozenAt": "2026-09-21T11:18:45+08:00",
+  "gitCommit": "aad83cde52579d2ee8a93663564b428d548849ff",
+  "gitDirty": true,
+  "policy": "The initial Holdout run used an invalid inferred-context measurement. This freeze follows a measurement correction and a Development-only lexical normalization. Dataset hashes are unchanged. Run the corrected Holdout once and do not tune against its case details.",
+  "developmentReport": "eval/reports/memory_quality_development_report_20260921-111736.json",
+  "invalidatedHoldoutReport": "eval/reports/memory_quality_holdout_report_20260921-105805.json",
+  "files": {
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/L2MemoryServiceImpl.java": "8d577d1ce88a834926566243ea854dcb0f0c701f92b4bc623a5609367589500d",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/L2MemoryService.java": "b498d8453c0a70db7e9e5f407b7cb609f6502bc4ab7c6983c00881ab49cb56c9",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/agent/runtime/AgentRuntimeContextBuilder.java": "db21a2000d2888565ace954558b06494a8b3c1c44f99dffd6f5d193527d8be56",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/service/impl/MemoryGraphServiceImpl.java": "4f8024d3624f0f251fd9b457051b56698228542d80f5ed66080ee8ede5bfc994",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/controller/MemoryGraphDebugController.java": "79f88df46dfe7b70ef5080642ca41a10ae1800ae7cd9bfa7ef22ef36cef3b94b",
+    "src/main/java/org/example/online_used_marketplace/modules/ai/controller/AgentRuntimeContextDebugController.java": "d55c98c635f57d9d16504112487ab1002ed08f715ec7ea390f5ce492b3851a8b",
+    "tools/memory_quality_eval.py": "9da22ae0f09faab269280e0c6ff9f13f08eacb18a5f6883ea05c0f0aef175b13",
+    "tools/generate_memory_quality_datasets.py": "07499f1932d8a631dbb4e54c70bf610a47da3c73160f46978bb163805bdeae35",
+    "eval/datasets/memory_quality_development_dataset.json": "24a02081941020c1b9cdde16199d3fa0add55940c738210dde88653f1f2f64cf",
+    "eval/datasets/memory_quality_holdout_dataset.json": "f5bae8a616f82becfabb1298b34f0177ff6e2e3c0f10a35a907a99f23feabc4c"
+  }
+}

@@ -5,9 +5,12 @@ import org.example.online_used_marketplace.modules.ai.agent.AgentTool;
 import org.example.online_used_marketplace.modules.ai.agent.AgentToolRegistry;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContext;
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
+import org.example.online_used_marketplace.modules.ai.token.TokenGenerationResult;
 import org.example.online_used_marketplace.modules.ai.vo.ToolQueryResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
@@ -16,12 +19,16 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
+import static org.mockito.ArgumentMatchers.any;
 
 class HybridAgentPlannerTest {
 
     private AgentPlanValidator validator;
     private HybridAgentPlanner planner;
     private AgentRuntimeContext runtimeContext;
+    private ChatGenerationService generationService;
 
     @BeforeEach
     void setUp() {
@@ -35,7 +42,8 @@ class HybridAgentPlannerTest {
                 tool("harness_fault", true)
         ));
         validator = new AgentPlanValidator(registry);
-        planner = new HybridAgentPlanner(registry, validator, mock(ChatGenerationService.class), new ObjectMapper());
+        generationService = mock(ChatGenerationService.class);
+        planner = new HybridAgentPlanner(registry, validator, generationService, new ObjectMapper());
         ReflectionTestUtils.setField(planner, "llmEnabled", false);
         ReflectionTestUtils.setField(planner, "configuredMaxReplans", 2);
 
@@ -102,6 +110,41 @@ class HybridAgentPlannerTest {
     }
 
     @Test
+    void shouldStopReplanWhenToolBudgetIsExhausted() {
+        AgentReplanDecision decision = planner.replan(
+                "检查系统错误率指标", runtimeContext, "trace-budget", "INTERNAL",
+                List.of(observation("prometheus_query", 0L, "no series")),
+                Set.of("prometheus_query"), 0, 1
+        );
+
+        assertThat(decision.isReplan()).isFalse();
+        assertThat(decision.getSteps()).isEmpty();
+        assertThat(decision.getReason()).contains("budget exhausted");
+    }
+
+    @Test
+    void shouldRejectUnknownDuplicateAndForwardDependencySteps() {
+        AgentPlanStep unknown = new AgentPlanStep(
+                "unknown", "shell", "unsafe", Map.of("command", "rm -rf /"), List.of());
+        AgentPlanStep first = new AgentPlanStep(
+                "first", "knowledge_search", "search", Map.of("query", "rules"), List.of("later"));
+        AgentPlanStep duplicate = new AgentPlanStep(
+                "later", "knowledge_search", "duplicate", Map.of("query", "rules"), List.of());
+
+        AgentPlanValidator.ValidationResult result = validator.validate(
+                List.of(unknown, first, duplicate), "检查规则", runtimeContext,
+                "trace-invalid", "INTERNAL", 5, ""
+        );
+
+        assertThat(result.steps()).hasSize(1);
+        assertThat(result.steps().get(0).getTool()).isEqualTo("knowledge_search");
+        assertThat(result.steps().get(0).getDependsOn()).isEmpty();
+        assertThat(result.warnings()).anyMatch(value -> value.contains("unknown tool"));
+        assertThat(result.warnings()).anyMatch(value -> value.contains("forward or unknown dependency"));
+        assertThat(result.warnings()).anyMatch(value -> value.contains("duplicate tool"));
+    }
+
+    @Test
     void shouldNotExpandPrivilegesAfterDeniedObservation() {
         ToolQueryResultVO denied = observation("prometheus_query", 0L, "拒绝：USER模式不允许调用内部工具");
         denied.setTarget("denied");
@@ -129,6 +172,34 @@ class HybridAgentPlannerTest {
         assertThat(plan.getSteps()).extracting(AgentPlanStep::getTool)
                 .contains("prometheus_query", "log_query");
         assertThat(plan.getValidationWarnings()).anyMatch(value -> value.startsWith("llmPlannerError="));
+    }
+
+    @Test
+    void shouldConstrainStructuredPlanToDeterministicCandidateTools() {
+        ReflectionTestUtils.setField(planner, "llmEnabled", true);
+        when(generationService.generate(any(TokenGenerationRequest.class))).thenReturn(
+                TokenGenerationResult.builder().content("""
+                        {"reason":"inspect evidence","steps":[
+                          {"id":"metric","tool":"prometheus_query","thought":"metrics","input":{},"dependsOn":[]},
+                          {"id":"logs","tool":"log_query","thought":"logs","input":{},"dependsOn":["metric"]},
+                          {"id":"profile","tool":"profile","thought":"extra","input":{},"dependsOn":[]},
+                          {"id":"db","tool":"mysql_read","thought":"extra","input":{},"dependsOn":[]}
+                        ]}
+                        """).build());
+
+        AgentPlan plan = planner.plan(
+                "先查 P95 指标，再查日志定位根因", runtimeContext,
+                "trace-constrained", "INTERNAL", 5
+        );
+
+        assertThat(plan.getPlannerType()).isEqualTo("LLM_STRUCTURED");
+        assertThat(plan.getSteps()).extracting(AgentPlanStep::getTool)
+                .containsExactly("prometheus_query", "log_query");
+        assertThat(plan.getSteps().get(1).getDependsOn()).containsExactly("metric");
+        ArgumentCaptor<TokenGenerationRequest> request = ArgumentCaptor.forClass(TokenGenerationRequest.class);
+        verify(generationService).generate(request.capture());
+        assertThat(request.getValue().getPrompt()).contains("prometheus_query", "log_query");
+        assertThat(request.getValue().getPrompt()).doesNotContain("profile:", "mysql_read:");
     }
 
     private ToolQueryResultVO observation(String tool, long total, String summary) {

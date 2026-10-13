@@ -33,6 +33,36 @@ public class L2MemoryRecord {
     @TableField("metadata_json")
     private String metadataJson;
 
+    private String sourceEventId;
+
+    private String idempotencyKey;
+
+    private String payloadHash;
+
+    private String sourceType;
+
+    private String assertionStatus;
+
+    private String scopeType;
+
+    private String scopeKey;
+
+    private String taskKey;
+
+    private String slotKey;
+
+    private Long revision;
+
+    private String status;
+
+    private Long supersedesId;
+
+    private LocalDateTime validFrom;
+
+    private LocalDateTime validUntil;
+
+    private LocalDateTime deletedAt;
+
     private LocalDateTime createdTime;
 
     private LocalDateTime updatedTime;

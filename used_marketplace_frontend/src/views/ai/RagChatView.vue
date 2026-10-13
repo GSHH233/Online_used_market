@@ -71,7 +71,7 @@ function stop() {
   <div class="page-shell rag-chat-page">
     <section class="hero-card chat-hero">
       <div>
-        <p class="eyebrow">规则问答</p>
+        <p class="eyebrow">平台规则助手</p>
         <h2>不确定能不能写，先问一下</h2>
         <p class="muted">把标题、描述或交易情况发过来，系统会结合平台规则给出解释和建议。</p>
       </div>
@@ -100,7 +100,7 @@ function stop() {
         </div>
         <article v-for="(message, index) in store.messages" :key="index" class="message-row" :class="message.role">
           <div class="message-bubble">
-            <strong>{{ message.role === 'user' ? '你' : message.role === 'assistant' ? 'AI 发布助手' : '系统' }}</strong>
+            <strong>{{ message.role === 'user' ? '你' : message.role === 'assistant' ? '平台规则助手' : '系统' }}</strong>
             <p>{{ message.content || (message.role === 'assistant' ? '正在生成...' : '') }}</p>
           </div>
         </article>

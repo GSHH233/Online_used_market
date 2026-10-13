@@ -173,8 +173,8 @@ Demo Center、Seed/Reset UI 已由用户明确移出本期范围，不作为阻�
 
 | ID | 验收项 | 实现位置 | 验收证据 | 状态 |
 | --- | --- | --- | --- | --- |
-| GH-AC-001 | README 可独立说明目标、闭环、权限和指标来源 | 根 README | 待实现/人工审阅 | PLANNED |
-| GH-AC-002 | check-env 能定位依赖故障且不泄密 | `scripts/check-env.ps1` | 待实现 | PLANNED |
-| GH-AC-003 | Seed 与 smoke-test 可重复执行且幂等 | `scripts/smoke-test.ps1`、Seed | 待实现 | PLANNED |
-| GH-AC-004 | Secret scan 无真实密钥、密码和个人配置 | 交付流水线 | 待执行 | PLANNED |
-| GH-AC-005 | Maven 与 Vue 构建成功 | Maven、Vue | 需按当前 commit 重跑 | IMPLEMENTED_PENDING_EVAL |
+| GH-AC-001 | README 可独立说明目标、闭环、权限和指标来源 | 根 README、`docs/benchmarks/README.md` | 2026-08-26 双人只读审查完成 | DONE |
+| GH-AC-002 | check-env 能定位依赖故障且不泄密 | `scripts/check-env.ps1`、`tools/demo_preflight.py` | 2026-08-26 本机执行，输出变量/服务状态但不输出值 | DONE |
+| GH-AC-003 | Seed 与 smoke-test 可重复执行且幂等 | `scripts/smoke-test.ps1`、`sql/marketplace_demo_seed.sql` | 只读预检已实现，需在完整三角色在线环境复跑 | IMPLEMENTED_PENDING_LIVE_ACCEPTANCE |
+| GH-AC-004 | Secret scan 无真实密钥、密码和个人配置 | 公开交付前扫描 | Key/JWT/私钥模式未命中；`application-idea.yml` 仍含本机密码 fallback，发布前需脱敏且保留本地配置 | RISK |
+| GH-AC-005 | Maven 与 Vue 构建成功 | Maven、Vue、GitHub Actions | 2026-08-26：JUnit 109（0 failure/error，1 skipped），Vue production build 通过 | DONE |

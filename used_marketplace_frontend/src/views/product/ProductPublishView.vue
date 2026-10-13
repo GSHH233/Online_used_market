@@ -36,6 +36,14 @@ const assistError = ref('')
 const assistResult = ref<PublishAssistResult | null>(null)
 const adoptedFields = ref<string[]>([])
 const manualImageUrl = ref('')
+const allowManualImageUrl = import.meta.env.VITE_ENABLE_AI_DEBUG === 'true'
+const categoryOptions = [
+  { value: '1', label: '手机数码' },
+  { value: '2', label: '电脑办公' },
+  { value: '3', label: '家电家具' },
+  { value: '4', label: '图书乐器' },
+  { value: '5', label: '服饰鞋包' },
+]
 
 const coverPreview = computed(() => form.imageUrls[0] || '')
 const assistOptimize = computed(() => assistResult.value?.optimizeResult || {})
@@ -108,7 +116,7 @@ async function onFileChange(event: Event) {
     if (!url) throw new Error('上传成功，但后端没有返回图片地址')
     addImageUrl(url)
   } catch (e: any) {
-    error.value = e?.message || '图片上传失败，请检查 MinIO 配置，或先粘贴一条图片 URL。'
+    error.value = e?.message || '图片上传失败，请稍后重试或更换图片。'
   } finally {
     uploading.value = false
     input.value = ''
@@ -408,7 +416,13 @@ watch(form, saveFormDraft, { deep: true })
         </div>
         <div class="grid two-col">
           <label>成色 1-10<input v-model.number="form.conditionLevel" type="number" min="1" max="10" /></label>
-          <label>分类编号<input v-model="form.categoryId" placeholder="不确定可留空" /></label>
+          <label>
+            商品分类
+            <select v-model="form.categoryId">
+              <option value="">请选择分类</option>
+              <option v-for="item in categoryOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
         </div>
         <p class="hint">{{ conditionHint }}</p>
         <label>交易地点<input v-model="form.locationText" placeholder="例如：深圳南山，可地铁站面交" /></label>
@@ -421,14 +435,14 @@ watch(form, saveFormDraft, { deep: true })
           <span>{{ uploading ? '正在上传...' : '选择图片上传' }}</span>
           <input type="file" accept="image/*" @change="onFileChange" />
         </label>
-        <p class="muted">如果 MinIO 暂时不可用，也可以先粘贴一条图片 URL 完成发布链路测试。</p>
+        <p class="muted">支持 JPG、PNG 等常见图片格式，请至少上传一张清晰的商品实拍图。</p>
 
         <div v-if="coverPreview" class="product-cover large">
           <img :src="coverPreview" alt="封面预览" />
         </div>
 
-        <label>手动补充图片地址</label>
-        <div class="inline-actions">
+        <label v-if="allowManualImageUrl">调试图片地址</label>
+        <div v-if="allowManualImageUrl" class="inline-actions">
           <input v-model="manualImageUrl" placeholder="输入图片 URL 后回车" @keyup.enter="addManualImageUrl" />
           <button class="secondary-btn" type="button" @click="addManualImageUrl">添加</button>
         </div>

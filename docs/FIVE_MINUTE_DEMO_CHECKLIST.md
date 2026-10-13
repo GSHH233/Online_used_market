@@ -1,47 +1,76 @@
 # 五分钟项目演示清单
 
-## 演示前准备
+这份清单只演示一条连续故事：**用户遇到发布/规则问题，内部人员定位知识链路异常，管理员审批修复并验证结果**。Runtime、Memory Graph、独立 ReAct/DAG 页面只在追问时展示。
 
-- Spring Boot、前端、MySQL、PostgreSQL、Redis、RabbitMQ、ES、Milvus、Prometheus 均可访问。
-- 准备 USER、INTERNAL、ADMIN 三个账号，不在文档或命令历史中保存真实 Token。
-- 确认 docId 19 可检索且 DB/ES/Milvus chunkId 一致。
-- 提前打开商城、RAG 对话、智能排查、任务运行、知识缺口和存储一致性页面。
+## 演示前 5 分钟
 
-## 0:00-1:00 商品与可信 RAG
+1. 启动 Spring Boot、Vue 和项目依赖。
+2. USER、INTERNAL、ADMIN Token 通过环境变量提供，不写入文档或命令历史：
 
-1. USER 登录并浏览商品。
-2. 在 RAG 对话询问“二手手机标题写全新未拆封、无发票有风险吗”。
-3. 展示流式回答、证据来源、风险提示；说明证据不足时拒答且不编造价格。
+   ```powershell
+   $env:DEMO_USER_TOKEN = '<user-token>'
+   $env:DEMO_INTERNAL_TOKEN = '<internal-token>'
+   $env:DEMO_ADMIN_TOKEN = '<admin-token>'
+   ```
 
-## 1:00-2:00 混合检索与知识缺口
+3. 执行只读预检：
 
-1. 展示向量召回、ES 关键词召回及 RRF 融合结果。
-2. 提交一个知识库无法回答的问题。
-3. INTERNAL 打开知识缺口列表，展示低置信度问题沉淀、关联文档和回归状态。
+   ```powershell
+   python tools/demo_preflight.py --base-url http://localhost:8080 --frontend-url http://localhost:5173 --doc-id 19 --strict
+   ```
 
-## 2:00-3:10 智能排查与 Runtime
+4. 准备固定问题：`二手手机标题写“全新未拆封但无发票”有风险吗？`
+5. 确认固定知识文档可用，不在演示时临时删除索引或破坏业务容器。
 
-1. INTERNAL 输入需要日志、指标和数据库共同判断的问题。
-2. 展示后端选择 DIRECT/REACT/DAG，前端只呈现结论、证据和执行轨迹。
-3. 打开“任务运行”，展示 Run、节点、checkpoint 和 traceId。
-4. 说明恢复会跳过已成功节点，快照重放不会再次调用真实工具。
+## 0:00-1:20 用户发布
 
-## 3:10-4:10 受控修复闭环
+1. 使用 USER 登录，进入“发布”。
+2. 填写标题、描述、成色和价格，点击“检查当前文案”。
+3. 展示发布结论、风险原因、引用规则和可套用文案。
+4. 采用一项建议并发布，说明 `assistId` 随业务请求自动回传，用户不需要查询数据库。
 
-1. INTERNAL 创建单文档 Repair 计划，状态为 `PENDING_APPROVAL`。
-2. 说明 INTERNAL 只能诊断和提交，ADMIN 才能审批执行。
-3. ADMIN 审批并执行，展示执行、三存储验证、成功关闭；失败则 `ESCALATED` 转人工。
-4. 展示旧 Repair/Runbook 真执行入口返回 409，不能绕过审批。
+讲述重点：AI 不是单独的聊天页面，而是嵌入真实发布流程；用户输入事实优先，模型不得编造价格或平台规则。
 
-## 4:10-5:00 可靠性与量化结果
+## 1:20-2:20 可信规则问答
 
-1. 展示 Harness 的超时、重试、Redis 快照和 fallback 故障注入报告。
-2. 展示 Retrieval、RAG Chat、Agent、AIOps、存储一致性和 Runtime 报告。
-3. 用一句话收口：项目形成“可检索、可编排、可审批、可恢复、可验证、可回归”的工程闭环。
+1. 进入“规则助手”，提交同一问题。
+2. 展示流式回答和可展开的参考规则。
+3. INTERNAL 可以展开“检索过程”；USER 看不到 trace、RRF 分数和工具细节。
+4. 说明证据不足时系统拒答，并将低置信度问题沉淀为知识缺口。
+
+讲述重点：Milvus 负责语义召回，Elasticsearch 负责强关键词匹配，RRF 融合两路排名；命中不等于可用，只有 ACTIVE 来源才能进入回答。
+
+## 2:20-4:20 智能排查与受控修复
+
+1. 使用 INTERNAL 进入“智能排查”，选择“知识检索无结果”固定案例。
+2. 展示排查结论、关键证据和 traceId；执行策略放在技术详情中。
+3. 根据结论创建知识文档 Repair 计划，状态应为“待审批”，此时没有写操作。
+4. 切换 ADMIN，审批后再次确认执行。
+5. 展示 DB/ES/Milvus 一致性验证以及最终 `RESOLVED`；验证失败时应为 `ESCALATED`，不能伪装成功。
+
+讲述重点：INTERNAL 只能调查和提交计划，ADMIN 才能批准；API 接受固定动作与白名单目标，不接受任意 shell 命令。
+
+## 4:20-5:00 指标与边界
+
+1. 打开“运营总览”，展示发布、检索、知识治理和智能排查四组业务指标。
+2. 打开 [评测摘要](benchmarks/README.md)，说明开发集与 Holdout 分离。
+3. 用一句话收口：
+
+   > 项目把二手交易中的发布风险和规则知识做成可信 RAG，并把内部知识故障处理做成可调查、可审批、可验证、可回归的 Agent 闭环。
+
+4. 主动说明边界：这是单业务域 AIOps MVP，不是通用 SRE 平台；Holdout v4 Context Recall 为 `0.872`，仍不能宣称生产级未知问题泛化。
+
+## 追问备用
+
+- 为什么使用 RRF：Milvus 相似度与 BM25 分数尺度不同，按排名融合更稳定。
+- 为什么需要稳定 chunkId：它是 DB、ES、Milvus 去重、引用和 Repair 的共同身份。
+- ReAct 和 DAG 的关系：统一 Planner 选择执行策略；简单任务直接执行，需要多工具依赖时才使用 DAG 并行。
+- Harness 做什么：保护工具执行的超时、有限重试、快照恢复和降级，不负责业务决策。
+- Runtime 如何恢复：从 checkpoint 恢复并跳过成功节点，幂等键阻止重复副作用。
 
 ## 演示失败预案
 
-- LLM 不可用：展示已有报告和 Trace，不伪造在线成功结果。
-- ES/Milvus 不可用：展示健康状态和 fallback 标识，正式指标不计入降级结果。
-- Repair 数据已一致：使用 forceReindex 创建受控计划，或展示最近成功任务，不临时破坏数据。
-- Runtime 太快无法暂停：展示已完成 Run 的 checkpoint 与快照重放；暂停恢复用自动化报告证明。
+- 模型额度不可用：明确展示规则降级标识，只证明业务闭环，不把降级结果计入 LLM 质量指标。
+- ES 或 Milvus 不可用：展示健康状态与 fallback，不把降级召回当作混合检索成功。
+- Repair 数据已经一致：展示最近任务或使用受控 `forceReindex` 计划，不临时破坏生产依赖。
+- 外部基础设施异常：展示冻结评测摘要和 trace，不能伪造在线成功结果。

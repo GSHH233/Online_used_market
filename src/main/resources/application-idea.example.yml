@@ -1,0 +1,26 @@
+# Copy to application-idea.yml (gitignored) for local IDEA overrides.
+# Shared defaults remain in application.yml. Supply credentials via environment variables.
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  datasource:
+    jdbc-url: ${MYSQL_URL:jdbc:mysql://localhost:3306/used_market?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
+    username: ${MYSQL_USERNAME:root}
+    password: ${MYSQL_PASSWORD:}
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      password: ${REDIS_PASSWORD:}
+  elasticsearch:
+    uris: ${ELASTICSEARCH_URIS:http://localhost:9200}
+
+minio:
+  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  access-key: ${MINIO_ACCESS_KEY:}
+  secret-key: ${MINIO_SECRET_KEY:}
+
+ai:
+  memory:
+    debug:
+      enabled: ${AI_MEMORY_DEBUG_ENABLED:false}

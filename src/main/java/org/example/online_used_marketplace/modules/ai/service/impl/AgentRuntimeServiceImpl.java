@@ -2,20 +2,24 @@ package org.example.online_used_marketplace.modules.ai.service.impl;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.GraphExecutionObserver;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.GraphExecutionOptions;
+import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentExecutionIdentity;
 import org.example.online_used_marketplace.modules.ai.dto.AgentRuntimeStartRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.GraphAgentRequestDTO;
 import org.example.online_used_marketplace.modules.ai.service.AgentRuntimeService;
 import org.example.online_used_marketplace.modules.ai.service.GraphReactAgentService;
 import org.example.online_used_marketplace.modules.ai.vo.AgentGraphNodeVO;
 import org.example.online_used_marketplace.modules.ai.vo.AgentRuntimeNodeVO;
+import org.example.online_used_marketplace.modules.ai.vo.AgentRuntimeAccessAuditVO;
 import org.example.online_used_marketplace.modules.ai.vo.AgentRuntimeCheckpointVO;
 import org.example.online_used_marketplace.modules.ai.vo.AgentRuntimeRunVO;
 import org.example.online_used_marketplace.modules.ai.vo.GraphAgentResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.ToolQueryResultVO;
+import org.example.online_used_marketplace.modules.user.enums.UserRole;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -41,11 +45,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 @Service
+@Slf4j
 public class AgentRuntimeServiceImpl implements AgentRuntimeService {
 
     private static final Set<String> RESUMABLE = Set.of("FAILED", "PAUSED");
     private static final Set<String> TERMINAL = Set.of("COMPLETED", "CANCELLED");
     private final JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate mysqlJdbcTemplate;
     private final ObjectMapper objectMapper;
     private final GraphReactAgentService graphAgentService;
     private final String workerId = "runtime-" + UUID.randomUUID();
@@ -54,9 +60,11 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
     private boolean faultInjectionEnabled;
 
     public AgentRuntimeServiceImpl(@Qualifier("memoryGraphJdbcTemplate") JdbcTemplate jdbcTemplate,
+                                   @Qualifier("mysqlJdbcTemplate") JdbcTemplate mysqlJdbcTemplate,
                                    ObjectMapper objectMapper,
                                    GraphReactAgentService graphAgentService) {
         this.jdbcTemplate = jdbcTemplate;
+        this.mysqlJdbcTemplate = mysqlJdbcTemplate;
         this.objectMapper = objectMapper;
         this.graphAgentService = graphAgentService;
     }
@@ -68,16 +76,21 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
         }
         String runId = UUID.randomUUID().toString();
         String traceId = UUID.randomUUID().toString();
+        AgentExecutionIdentity identity = AgentExecutionIdentity.current();
+        if (!identity.authenticated()) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "Runtime启动缺少可信身份");
+        }
+        identity = requireCurrentOwnerAuthorization(identity.userId(), "START");
         int maxSteps = clampSteps(request.getMaxSteps());
         int failAfter = request.getFailAfterNodeCount() == null ? 0 : request.getFailAfterNodeCount();
         if (failAfter > 0 && !faultInjectionEnabled) {
             throw new BusinessException(ResultCode.FORBIDDEN, "Runtime故障注入未启用");
         }
         jdbcTemplate.update("""
-                INSERT INTO agent_runtime_run(run_id,trace_id,session_id,strategy,status,question,max_steps,fault_after_nodes)
-                VALUES (?,?,?,?, 'CREATED', ?,?,?)
-                """, runId, traceId, safe(request.getSessionId(), 128), "DAG",
-                request.getQuestion().trim(), maxSteps, failAfter);
+                INSERT INTO agent_runtime_run(run_id,trace_id,session_id,owner_user_id,owner_role,strategy,status,question,max_steps,fault_after_nodes)
+                VALUES (?,?,?,?,?,?, 'CREATED', ?,?,?)
+                """, runId, traceId, safe(request.getSessionId(), 128),
+                identity.userId(), identity.role(), "DAG", request.getQuestion().trim(), maxSteps, failAfter);
         submit(runId, Map.of(), "RUNNING", nextLeaseOwner());
         return get(runId);
     }
@@ -86,13 +99,15 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
     public AgentRuntimeRunVO get(String runId) {
         String id = requireRunId(runId);
         List<AgentRuntimeRunVO> rows = jdbcTemplate.query("""
-                SELECT run_id,trace_id,strategy,status,question,answer,error_msg,max_steps,
+                SELECT run_id,trace_id,owner_user_id,owner_role,strategy,status,question,answer,error_msg,max_steps,
                        created_time,updated_time,finished_at
                 FROM agent_runtime_run WHERE run_id=?
                 """, (rs, rowNum) -> {
             AgentRuntimeRunVO vo = new AgentRuntimeRunVO();
             vo.setRunId(rs.getString("run_id"));
             vo.setTraceId(rs.getString("trace_id"));
+            vo.setOwnerUserId(rs.getString("owner_user_id"));
+            vo.setOwnerRole(rs.getString("owner_role"));
             vo.setStrategy(rs.getString("strategy"));
             vo.setStatus(rs.getString("status"));
             vo.setQuestion(rs.getString("question"));
@@ -127,6 +142,7 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
     @Override
     public AgentRuntimeRunVO resume(String runId) {
         AgentRuntimeRunVO current = get(runId);
+        requireCurrentOwnerAuthorization(current.getOwnerUserId(), "RESUME", current.getRunId());
         if (!RESUMABLE.contains(current.getStatus())) {
             throw new BusinessException(ResultCode.CONFLICT, "当前状态不可恢复：" + current.getStatus());
         }
@@ -160,18 +176,22 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
     @Override
     public AgentRuntimeRunVO replay(String runId, boolean liveReadonly) {
         AgentRuntimeRunVO source = get(runId);
+        AgentExecutionIdentity currentOwner = requireCurrentOwnerAuthorization(
+                source.getOwnerUserId(), "REPLAY", source.getRunId());
         if (!TERMINAL.contains(source.getStatus()) && !"FAILED".equals(source.getStatus())) {
             throw new BusinessException(ResultCode.CONFLICT, "仅已完成、已取消或失败的 Run 可重放");
         }
         Map<String, Object> base = jdbcTemplate.queryForMap(
-                "SELECT session_id,question,max_steps FROM agent_runtime_run WHERE run_id=?", runId);
+                "SELECT session_id,owner_user_id,owner_role,question,max_steps FROM agent_runtime_run WHERE run_id=?", runId);
         String nextRunId = UUID.randomUUID().toString();
         String traceId = UUID.randomUUID().toString();
         String strategy = liveReadonly ? "REPLAY_LIVE_READONLY" : "REPLAY_WITH_SNAPSHOTS";
         jdbcTemplate.update("""
-                INSERT INTO agent_runtime_run(run_id,trace_id,session_id,strategy,status,question,max_steps)
-                VALUES (?,?,?,?, 'CREATED', ?,?)
-                """, nextRunId, traceId, String.valueOf(base.getOrDefault("session_id", "")), strategy,
+                INSERT INTO agent_runtime_run(run_id,trace_id,session_id,owner_user_id,owner_role,strategy,status,question,max_steps)
+                VALUES (?,?,?,?,?,?, 'CREATED', ?,?)
+                """, nextRunId, traceId, String.valueOf(base.getOrDefault("session_id", "")),
+                String.valueOf(base.getOrDefault("owner_user_id", "")),
+                currentOwner.role(), strategy,
                 String.valueOf(base.get("question")), ((Number) base.get("max_steps")).intValue());
         submit(nextRunId, liveReadonly ? Map.of() : completedObservations(runId),
                 "RUNNING", nextLeaseOwner());
@@ -193,6 +213,36 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
             vo.setCreatedTime(time(rs.getTimestamp("created_time")));
             return vo;
         }, id);
+    }
+
+    @Override
+    public void recordAccessAudit(String runId, String action, String decision, String reason) {
+        String id = requireRunId(runId);
+        AgentExecutionIdentity actor = AgentExecutionIdentity.current();
+        insertAccessAudit(id, actor.userId(), actor.role(), action, decision, reason);
+    }
+
+    @Override
+    public List<AgentRuntimeAccessAuditVO> accessAudits(String runId, Integer limit) {
+        String id = requireRunId(runId);
+        int size = Math.max(1, Math.min(limit == null ? 50 : limit, 200));
+        return jdbcTemplate.query("""
+                SELECT id,run_id,trace_id,actor_user_id,actor_role,action,decision,reason,created_time
+                FROM agent_runtime_access_audit
+                WHERE run_id=? ORDER BY id DESC LIMIT ?
+                """, (rs, rowNum) -> {
+            AgentRuntimeAccessAuditVO vo = new AgentRuntimeAccessAuditVO();
+            vo.setId(rs.getLong("id"));
+            vo.setRunId(rs.getString("run_id"));
+            vo.setTraceId(rs.getString("trace_id"));
+            vo.setActorUserId(rs.getString("actor_user_id"));
+            vo.setActorRole(rs.getString("actor_role"));
+            vo.setAction(rs.getString("action"));
+            vo.setDecision(rs.getString("decision"));
+            vo.setReason(rs.getString("reason"));
+            vo.setCreatedTime(time(rs.getTimestamp("created_time")));
+            return vo;
+        }, id, size);
     }
 
     @Scheduled(fixedDelayString = "${ai.agent.runtime.recovery-interval-ms:30000}")
@@ -227,8 +277,23 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
     private void execute(String runId, Map<String, ToolQueryResultVO> restored,
                          String startStatus, String leaseOwner) {
         Map<String, Object> row = jdbcTemplate.queryForMap(
-                "SELECT trace_id,session_id,question,max_steps,status FROM agent_runtime_run WHERE run_id=?", runId);
+                "SELECT trace_id,session_id,owner_user_id,owner_role,question,max_steps,status FROM agent_runtime_run WHERE run_id=?", runId);
         if ("CANCELLED".equals(row.get("status")) || "PAUSED".equals(row.get("status"))) {
+            return;
+        }
+        AgentExecutionIdentity identity;
+        try {
+            identity = requireCurrentOwnerAuthorization(
+                    String.valueOf(row.getOrDefault("owner_user_id", "")), "EXECUTE");
+        } catch (BusinessException ex) {
+            jdbcTemplate.update("""
+                    UPDATE agent_runtime_run
+                    SET status='FAILED',error_msg=?,finished_at=CURRENT_TIMESTAMP,
+                        lease_owner='',lease_until=NULL,version=version+1
+                    WHERE run_id=? AND status NOT IN ('COMPLETED','CANCELLED')
+                    """, safe(ex.getMessage(), 4000), runId);
+            insertAccessAudit(runId, "SYSTEM", "SYSTEM", "EXECUTE", "DENY", ex.getMessage());
+            checkpoint(runId, "AUTHORIZATION_REVOKED");
             return;
         }
         int claimed = jdbcTemplate.update("""
@@ -244,10 +309,10 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
         request.setSessionId(String.valueOf(row.getOrDefault("session_id", "")));
         request.setQuestion(String.valueOf(row.get("question")));
         request.setMaxSteps(((Number) row.get("max_steps")).intValue());
-        request.setMode("INTERNAL");
+        request.setMode(identity.effectiveMode("INTERNAL"));
         try {
             GraphAgentResponseVO response = graphAgentService.run(request,
-                    new GraphExecutionOptions(new RuntimeObserver(runId, leaseOwner), restored));
+                    new GraphExecutionOptions(new RuntimeObserver(runId, leaseOwner), restored, identity));
             String state = currentStatus(runId);
             if ("PAUSED".equals(state) || "CANCELLED".equals(state)) {
                 return;
@@ -446,6 +511,76 @@ public class AgentRuntimeServiceImpl implements AgentRuntimeService {
 
     private String nextLeaseOwner() {
         return workerId + "-" + UUID.randomUUID();
+    }
+
+    private AgentExecutionIdentity requireCurrentOwnerAuthorization(String ownerUserId, String action) {
+        return requireCurrentOwnerAuthorization(ownerUserId, action, null);
+    }
+
+    private AgentExecutionIdentity requireCurrentOwnerAuthorization(
+            String ownerUserId,
+            String action,
+            String auditRunId) {
+        String owner = safe(ownerUserId, 64);
+        String denial = "";
+        String currentRole = UserRole.USER.name();
+        try {
+            long numericOwner = Long.parseLong(owner);
+            List<Map<String, Object>> users = mysqlJdbcTemplate.queryForList("""
+                    SELECT status,role
+                    FROM ums_user
+                    WHERE id=? AND is_deleted=0
+                    LIMIT 1
+                    """, numericOwner);
+            if (users.isEmpty()) {
+                denial = "Runtime owner does not exist";
+            } else {
+                Map<String, Object> user = users.get(0);
+                Number status = (Number) user.get("status");
+                currentRole = UserRole.normalize(String.valueOf(user.getOrDefault("role", "USER")));
+                if (status == null || status.intValue() != 1) {
+                    denial = "Runtime owner is disabled";
+                } else if (!UserRole.canUseInternal(currentRole)) {
+                    denial = "Runtime owner no longer has INTERNAL permission";
+                }
+            }
+        } catch (NumberFormatException ex) {
+            denial = "Runtime owner identity is invalid";
+        } catch (RuntimeException ex) {
+            denial = "Runtime owner authorization lookup failed";
+        }
+        if (StringUtils.hasText(denial)) {
+            if (StringUtils.hasText(auditRunId)) {
+                AgentExecutionIdentity actor = AgentExecutionIdentity.current();
+                insertAccessAudit(auditRunId, actor.userId(), actor.role(), action, "DENY", denial);
+            }
+            throw new BusinessException(ResultCode.FORBIDDEN, denial);
+        }
+        return new AgentExecutionIdentity(owner, currentRole);
+    }
+
+    private void insertAccessAudit(
+            String runId,
+            String actorUserId,
+            String actorRole,
+            String action,
+            String decision,
+            String reason) {
+        try {
+            List<String> traces = jdbcTemplate.query(
+                    "SELECT trace_id FROM agent_runtime_run WHERE run_id=? LIMIT 1",
+                    (rs, rowNum) -> rs.getString(1), runId);
+            String traceId = traces.isEmpty() ? "" : traces.get(0);
+            jdbcTemplate.update("""
+                    INSERT INTO agent_runtime_access_audit(
+                        run_id,trace_id,actor_user_id,actor_role,action,decision,reason)
+                    VALUES (?,?,?,?,?,?,?)
+                    """, safe(runId, 128), safe(traceId, 128), safe(actorUserId, 64),
+                    UserRole.normalize(actorRole), safe(action, 64), safe(decision, 16), safe(reason, 500));
+        } catch (RuntimeException ex) {
+            log.warn("Runtime access audit write failed, runId={}, action={}, decision={}, reason={}",
+                    runId, action, decision, ex.getMessage());
+        }
     }
 
     private String requireRunId(String runId) {

@@ -8,19 +8,22 @@ import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.product.dto.ProductCreateDTO;
-import org.example.online_used_marketplace.modules.ai.service.PublishAssistFeedbackService;
 import org.example.online_used_marketplace.modules.product.dto.ProductQueryDTO;
 import org.example.online_used_marketplace.modules.product.entity.Product;
 import org.example.online_used_marketplace.modules.product.entity.ProductImage;
+import org.example.online_used_marketplace.modules.product.enums.ProductStatus;
+import org.example.online_used_marketplace.modules.product.event.ProductPublishedEvent;
 import org.example.online_used_marketplace.modules.product.mapper.ProductImageMapper;
 import org.example.online_used_marketplace.modules.product.mapper.ProductMapper;
 import org.example.online_used_marketplace.modules.product.service.ProductService;
+import org.example.online_used_marketplace.modules.product.service.ProductPublicationValidator;
 import org.example.online_used_marketplace.modules.product.vo.ProductCreateVO;
 import org.example.online_used_marketplace.modules.product.vo.ProductDetailVO;
 import org.example.online_used_marketplace.modules.product.vo.ProductListItemVO;
 import org.example.online_used_marketplace.modules.user.entity.User;
 import org.example.online_used_marketplace.modules.user.mapper.UserMapper;
 import org.springframework.beans.BeanUtils;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,18 +35,22 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Transactional(transactionManager = "mysqlTransactionManager")
 public class ProductServiceImpl implements ProductService {
 
     private final ProductMapper productMapper;
     private final ProductImageMapper productImageMapper;
     private final UserMapper userMapper;
-    private final PublishAssistFeedbackService publishAssistFeedbackService;
+    private final List<ProductPublicationValidator> publicationValidators;
+    private final ApplicationEventPublisher eventPublisher;
     private static final String DEFAULT_SORT_BY = "publishTime";
     private static final String DEFAULT_SORT_DIRECTION = "desc";
 
     @Override
     public ProductCreateVO addProduct(ProductCreateDTO dto, Long currentUserId) {
+        if (dto == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "商品请求不能为空");
+        }
         if (dto.getImageUrls() == null || dto.getImageUrls().isEmpty()) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "商品图片不能为空");
         }
@@ -53,11 +60,14 @@ public class ProductServiceImpl implements ProductService {
         if (dto.getConditionLevel() == null || dto.getConditionLevel() < 1 || dto.getConditionLevel() > 10) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "商品成色必须在1-10之间");
         }
+        for (ProductPublicationValidator validator : publicationValidators) {
+            validator.validate(dto, currentUserId);
+        }
 
         Product product = new Product();
         BeanUtils.copyProperties(dto, product);
         product.setSellerId(currentUserId);
-        product.setStatus(1);
+        product.setStatus(ProductStatus.ON_SALE.getCode());
         product.setViewCount(0);
         product.setFavoriteCount(0);
         product.setPublishTime(LocalDateTime.now());
@@ -83,7 +93,7 @@ public class ProductServiceImpl implements ProductService {
             }
         }
 
-        publishAssistFeedbackService.linkProduct(dto.getAssistId(), currentUserId, productId, dto);
+        eventPublisher.publishEvent(ProductPublishedEvent.snapshot(productId, currentUserId, dto));
 
         return new ProductCreateVO(productId, product.getTitle(), product.getStatus());
     }
@@ -103,7 +113,6 @@ public class ProductServiceImpl implements ProductService {
                 .eq(dto.getStatus() != null, "status", dto.getStatus())
                 .ge(dto.getMinPrice() != null, "price", dto.getMinPrice())
                 .le(dto.getMaxPrice() != null, "price", dto.getMaxPrice());
-        long total = productMapper.selectCount(wrapper);
 
         // Step 4: 这里留给你实现排序逻辑（建议做字段白名单，防 SQL 注入）
         applySort(wrapper, dto.getSortBy(), dto.getSortDirection());
@@ -143,7 +152,7 @@ public class ProductServiceImpl implements ProductService {
         Page<ProductListItemVO> voPage = new Page<>(
                 productPage.getCurrent(),
                 productPage.getSize(),
-                total
+                productPage.getTotal()
         );
         voPage.setRecords(voList);
         return voPage;
@@ -187,8 +196,14 @@ public class ProductServiceImpl implements ProductService {
     }
 
     private void validateQuery(ProductQueryDTO dto) {
-        if (dto.getPageNum() < 1) {
+        if (dto == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "查询参数不能为空");
+        }
+        if (dto.getPageNum() == null || dto.getPageNum() < 1) {
             throw new BusinessException(ResultCode.BAD_REQUEST, "页码必须大于等于1");
+        }
+        if (dto.getPageSize() == null || dto.getPageSize() < 1 || dto.getPageSize() > 50) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "每页数量必须在1-50之间");
         }
         if (dto.getMinPrice() != null && dto.getMaxPrice() != null
                 && dto.getMaxPrice().compareTo(dto.getMinPrice()) < 0) {

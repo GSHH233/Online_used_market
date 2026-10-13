@@ -1,6 +1,6 @@
 # GitHub 交付收尾 Spec
 
-状态：`READY`  
+状态：`PREPARED_PENDING_PUSH`
 范围：README、架构图、启动脚本、演示数据和公开仓库检查
 
 ## 1. 目标
@@ -103,3 +103,13 @@ Given 准备提交，When 运行 secret scan，Then没有真实 Key、密码、I
 ## 5. 完成边界
 
 GitHub 收尾不新增业务框架，不引入 LangChain/LangGraph，不迁移现有存储。重点是让现有能力可运行、可解释、可评测、可展示。
+
+## 6. 2026-10-13 发布准备记录
+
+- 清理前创建项目源码/文档/配置快照与完整 Git bundle；11 个个人材料文件移动到项目外备份，前后 SHA-256 一致。
+- 本机 IDEA profile 留在原工作区；公开仓库只交付 `application-idea.example.yml`，原 profile 不再跟踪。
+- 保留 agent.md、Spec、核心代码解析、演示清单和全部业务评测脚本/数据集；增加 docs/README.md 工程文档入口。
+- 原始评测报告、临时文件、运行日志、依赖缓存和构建产物排除；RAG 最新首次 Holdout v6 的 RISK 结论保留在公开摘要。
+- 基于远端最新提交建立独立发布目录，不覆盖原工作区配置，也不强制推送。
+- 发布目录验证：Java 310 条，308 通过、2 跳过；前端 npm ci 后构建通过；Python 编译与冻结数据集结构校验通过；token-like 扫描 0 命中。
+- GitHub 推送与远端 commit 回读为最后步骤；真实服务与浏览器验收仍保留待验收状态。

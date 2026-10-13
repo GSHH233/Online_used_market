@@ -5,11 +5,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
 import org.example.online_used_marketplace.modules.ai.service.L2MemoryService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
 import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
 import org.example.online_used_marketplace.modules.ai.token.TokenScene;
 import org.example.online_used_marketplace.modules.ai.vo.L3SessionSummaryVO;
+import org.example.online_used_marketplace.modules.ai.vo.L2MemoryHitVO;
+import org.example.online_used_marketplace.modules.ai.vo.L2SessionSummarySnapshot;
+import org.example.online_used_marketplace.modules.ai.vo.L2SessionSummaryWriteResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -33,39 +37,41 @@ public class InMemorySessionSummaryServiceImpl implements SessionSummaryService 
 
     private static final int LLM_REFRESH_EVERY_TURNS = 3;
     private static final double L3_SYNC_IMPORTANCE = 0.8D;
+    private static final List<String> PRODUCT_SWITCH_MARKERS = List.of(
+            "换成", "换一台", "改卖", "这次卖", "现在卖", "换个商品", "另一台", "另一个商品");
 
-    private final Map<String, L3SessionSummaryVO> summaryStore = new ConcurrentHashMap<>();
-    private final Map<String, Integer> turnCounter = new ConcurrentHashMap<>();
+    private final Map<MemoryScope, L3SessionSummaryVO> summaryStore = new ConcurrentHashMap<>();
+    private final Map<MemoryScope, Integer> turnCounter = new ConcurrentHashMap<>();
     private final ChatGenerationService chatGenerationService;
     private final L2MemoryService l2MemoryService;
     private final ObjectMapper objectMapper;
 
     @Override
-    public String getSummary(String sessionId) {
-        L3SessionSummaryVO summary = getStructuredSummary(sessionId);
+    public String getSummary(MemoryScope scope) {
+        L3SessionSummaryVO summary = getStructuredSummary(scope);
         return summary == null ? "" : summary.getPromptBlock();
     }
 
     @Override
-    public L3SessionSummaryVO getStructuredSummary(String sessionId) {
-        if (!StringUtils.hasText(sessionId)) {
+    public L3SessionSummaryVO getStructuredSummary(MemoryScope scope) {
+        if (scope == null) {
             return null;
         }
-        String sid = sessionId.trim();
-        L3SessionSummaryVO cached = summaryStore.get(sid);
+        L3SessionSummaryVO cached = summaryStore.get(scope);
         if (cached != null) {
             return cached;
         }
-        L3SessionSummaryVO restored = restoreFromL2(sid);
+        L3SessionSummaryVO restored = restoreFromL2(scope);
         if (restored != null) {
-            summaryStore.put(sid, restored);
+            L3SessionSummaryVO previous = summaryStore.putIfAbsent(scope, restored);
+            return previous == null ? restored : previous;
         }
         return restored;
     }
 
     @Override
-    public Map<String, String> getAutofillParams(String sessionId) {
-        L3SessionSummaryVO summary = getStructuredSummary(sessionId);
+    public Map<String, String> getAutofillParams(MemoryScope scope) {
+        L3SessionSummaryVO summary = getStructuredSummary(scope);
         Map<String, String> params = new LinkedHashMap<>();
         if (summary == null) {
             return params;
@@ -78,50 +84,100 @@ public class InMemorySessionSummaryServiceImpl implements SessionSummaryService 
     }
 
     @Override
-    public void refreshSummaryIfNeeded(String sessionId, String question, String answer) {
-        if (!StringUtils.hasText(sessionId)) {
+    public void refreshSummaryIfNeeded(MemoryScope scope, String question, String answer) {
+        if (scope == null) {
             return;
         }
-        String sid = sessionId.trim();
-        int turns = turnCounter.merge(sid, 1, Integer::sum);
-
-        L3SessionSummaryVO old = summaryStore.getOrDefault(sid, newSummary(sid));
-        L3SessionSummaryVO llm = (turns == 1 || turns % LLM_REFRESH_EVERY_TURNS == 0)
-                ? extractByLlm(old, question, answer)
-                : new L3SessionSummaryVO();
-        L3SessionSummaryVO rule = extractByRule(question, answer);
-        L3SessionSummaryVO merged = merge(old, llm, rule);
-        merged.setUpdatedAt(LocalDateTime.now());
-        merged.setPromptBlock(toPromptBlock(merged));
-        summaryStore.put(sid, merged);
-        syncToL2(merged);
+        summaryStore.compute(scope, (key, cached) -> {
+            L3SessionSummaryVO old = cached == null ? restoreFromL2(key) : cached;
+            if (old == null) {
+                old = newSummary(key);
+            }
+            String switchedQuestion = switchedProductQuestion(question);
+            boolean productSwitched = switchedQuestion != null;
+            if (productSwitched) {
+                long currentRevision = revisionOf(old);
+                old = newSummary(key);
+                old.setRevision(currentRevision);
+            }
+            int turns = turnCounter.merge(key, 1, Integer::sum);
+            L3SessionSummaryVO llm = (turns == 1 || turns % LLM_REFRESH_EVERY_TURNS == 0)
+                    ? extractByLlm(old, question, answer)
+                    : new L3SessionSummaryVO();
+            if (productSwitched) {
+                llm.setProductName(null);
+                llm.setCategory(null);
+                llm.setBrand(null);
+                llm.setModel(null);
+                llm.setKnownFacts(List.of());
+                llm.setMissingFields(List.of());
+            }
+            L3SessionSummaryVO merged = merge(old, llm,
+                    extractByRule(productSwitched ? switchedQuestion : question, answer, productSwitched));
+            merged.setUserId(key.userId());
+            merged.setSessionId(key.sessionId());
+            merged.setUpdatedAt(LocalDateTime.now());
+            merged.setPromptBlock(toPromptBlock(merged));
+            L2SessionSummaryWriteResult write = syncToL2(merged, revisionOf(old));
+            if (!write.accepted()) {
+                log.info("L3 summary CAS conflict, reload latest owner={}, session={}, expectedRevision={}, actualRevision={}",
+                        key.userId(), key.sessionId(), revisionOf(old), write.revision());
+                L3SessionSummaryVO latest = restoreFromL2(key);
+                return latest == null ? old : latest;
+            }
+            merged.setRevision(write.revision());
+            return merged;
+        });
     }
 
-    private L3SessionSummaryVO newSummary(String sessionId) {
+    private L3SessionSummaryVO newSummary(MemoryScope scope) {
         L3SessionSummaryVO vo = new L3SessionSummaryVO();
-        vo.setUserId(sessionId);
-        vo.setSessionId(sessionId);
+        vo.setUserId(scope.userId());
+        vo.setSessionId(scope.sessionId());
+        vo.setRevision(0L);
         vo.setUpdatedAt(LocalDateTime.now());
         vo.setPromptBlock("（无）");
         return vo;
     }
 
-    private L3SessionSummaryVO extractByRule(String question, String answer) {
+    private L3SessionSummaryVO extractByRule(String question, String answer, boolean switchedProduct) {
         String text = (safe(question) + " " + safe(answer)).trim();
         String lower = text.toLowerCase(Locale.ROOT);
+        String productText = switchedProduct ? safe(question) : text;
+        String productLower = productText.toLowerCase(Locale.ROOT);
         L3SessionSummaryVO vo = new L3SessionSummaryVO();
         vo.setCurrentGoal(detectGoal(lower));
-        vo.setCategory(detectCategory(text, lower));
-        vo.setBrand(detectBrand(lower));
-        vo.setModel(detectModel(text));
+        vo.setCategory(detectCategory(productText, productLower));
+        vo.setBrand(detectBrand(productLower));
+        vo.setModel(detectModel(productText));
         vo.setProductName(detectProductName(vo));
-        vo.setKnownFacts(detectKnownFacts(text, lower));
-        vo.setMissingFields(detectMissingFields(vo.getCategory(), text, lower));
+        vo.setKnownFacts(detectKnownFacts(productText, productLower));
+        vo.setMissingFields(detectMissingFields(vo.getCategory(), productText, productLower));
         vo.setLastRiskConclusion(extractSentence(answer, "风险", "禁售", "不能发布", "高风险"));
         vo.setLastPriceConclusion(extractSentence(answer, "价格", "定价", "估价", "下调", "扣减"));
         vo.setLastPublishAdvice(extractSentence(answer, "标题", "描述", "建议", "写"));
         vo.setNextAsk(extractSentence(answer, "补充", "缺", "请提供", "需要"));
         return vo;
+    }
+
+    private String switchedProductQuestion(String question) {
+        if (!StringUtils.hasText(question)) {
+            return null;
+        }
+        for (String marker : PRODUCT_SWITCH_MARKERS) {
+            int index = question.indexOf(marker);
+            if (index < 0 || (index > 0 && question.charAt(index - 1) == '不')) {
+                continue;
+            }
+            String target = question.substring(index + marker.length()).trim();
+            String lower = target.toLowerCase(Locale.ROOT);
+            if (StringUtils.hasText(detectCategory(target, lower))
+                    || StringUtils.hasText(detectBrand(lower))
+                    || StringUtils.hasText(detectModel(target))) {
+                return target;
+            }
+        }
+        return null;
     }
 
     private L3SessionSummaryVO extractByLlm(L3SessionSummaryVO old, String question, String answer) {
@@ -180,6 +236,7 @@ public class InMemorySessionSummaryServiceImpl implements SessionSummaryService 
         L3SessionSummaryVO out = new L3SessionSummaryVO();
         out.setUserId(src.getUserId());
         out.setSessionId(src.getSessionId());
+        out.setRevision(src.getRevision());
         out.setCurrentGoal(src.getCurrentGoal());
         out.setProductName(src.getProductName());
         out.setCategory(src.getCategory());
@@ -240,31 +297,51 @@ public class InMemorySessionSummaryServiceImpl implements SessionSummaryService 
         return String.join("\n", lines);
     }
 
-    private void syncToL2(L3SessionSummaryVO vo) {
+    private L2SessionSummaryWriteResult syncToL2(L3SessionSummaryVO vo, long expectedRevision) {
         if (vo == null || !StringUtils.hasText(vo.getSessionId()) || !StringUtils.hasText(vo.getPromptBlock())) {
-            return;
+            throw new IllegalArgumentException("L3 summary owner, session and prompt are required");
         }
         try {
             Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("schema", "l3_session_summary_v1");
             metadata.put("kv", vo.getRawKv());
             metadata.put("source", "l3_rule_llm_merge");
+            metadata.put("expectedRevision", expectedRevision);
             String content = "SESSION_SUMMARY|" + vo.getPromptBlock();
-            l2MemoryService.saveMemory(vo.getUserId(), vo.getSessionId(), "SESSION_SUMMARY", content, L3_SYNC_IMPORTANCE, objectMapper.writeValueAsString(metadata));
+            String metadataJson = objectMapper.writeValueAsString(metadata);
+            L2SessionSummaryWriteResult result = l2MemoryService.saveSessionSummaryCas(
+                    vo.getUserId(), vo.getSessionId(), content, L3_SYNC_IMPORTANCE, metadataJson, expectedRevision);
+            if (result != null) {
+                return result;
+            }
+            // Compatibility for isolated mocks and pre-CAS adapters only.
+            l2MemoryService.saveMemory(
+                    vo.getUserId(), vo.getSessionId(), "SESSION_SUMMARY", content, L3_SYNC_IMPORTANCE, metadataJson);
+            return new L2SessionSummaryWriteResult(true, expectedRevision + 1L, null);
         } catch (Exception ex) {
-            log.debug("sync L3 summary to L2 skipped, reason={}", ex.getMessage());
+            throw new IllegalStateException("L3 summary persistence failed", ex);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private L3SessionSummaryVO restoreFromL2(String sessionId) {
+    private L3SessionSummaryVO restoreFromL2(MemoryScope scope) {
         try {
-            return l2MemoryService.retrieve(sessionId, sessionId, "SESSION_SUMMARY", 1, 0D)
-                    .stream()
-                    .filter(one -> "SESSION_SUMMARY".equalsIgnoreCase(one.getMemoryType()))
-                    .findFirst()
-                    .map(hit -> {
-                        L3SessionSummaryVO vo = newSummary(sessionId);
+            L2SessionSummarySnapshot snapshot = l2MemoryService.latestSessionSummarySnapshot(
+                    scope.userId(), scope.sessionId());
+            if (snapshot == null) {
+                L2MemoryHitVO legacy = l2MemoryService.latestSessionSummary(scope.userId(), scope.sessionId());
+                snapshot = legacy == null ? null : new L2SessionSummarySnapshot(legacy, 0L);
+            }
+            L2SessionSummarySnapshot resolved = snapshot;
+            return java.util.Optional.ofNullable(resolved)
+                    .map(one -> {
+                        L2MemoryHitVO hit = one.memory();
+                        if (!scope.userId().equals(hit.getUserId()) || !scope.sessionId().equals(hit.getSessionId())
+                                || !"SESSION_SUMMARY".equals(hit.getMemoryType())) {
+                            return null;
+                        }
+                        L3SessionSummaryVO vo = newSummary(scope);
+                        vo.setRevision(one.revision());
                         try {
                             Map<String, Object> metadata = objectMapper.readValue(hit.getMetadataJson(), new TypeReference<Map<String, Object>>() {});
                             Object kvObj = metadata.get("kv");
@@ -275,17 +352,19 @@ public class InMemorySessionSummaryServiceImpl implements SessionSummaryService 
                         } catch (Exception ignore) {
                             // fallback to content below
                         }
-                        if (!StringUtils.hasText(vo.getPromptBlock())) {
-                            vo.setPromptBlock(hit.getContent());
-                        } else {
-                            vo.setPromptBlock(toPromptBlock(vo));
-                        }
+                        vo.setPromptBlock(vo.getRawKv().isEmpty()
+                                ? safe(hit.getContent()).replaceFirst("^SESSION_SUMMARY\\|", "")
+                                : toPromptBlock(vo));
                         return vo;
                     })
                     .orElse(null);
         } catch (Exception ex) {
             return null;
         }
+    }
+
+    private long revisionOf(L3SessionSummaryVO summary) {
+        return summary == null || summary.getRevision() == null ? 0L : Math.max(0L, summary.getRevision());
     }
 
     private Map<String, String> toStringMap(Map<?, ?> raw) {

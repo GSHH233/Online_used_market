@@ -198,7 +198,7 @@ public class KnowledgeGapServiceImpl implements KnowledgeGapService {
             KnowledgeSearchResponseVO retrieval = knowledgeSearchService.searchHybrid(gap.getQuery(), 5, null);
             retrievalHit = retrieval != null && retrieval.getHits() != null && retrieval.getHits().stream()
                     .anyMatch(hit -> gap.getLinkedDocId().equals(hit.getDocId()));
-            WsChatDoneVO answer = ragChatService.chat("gap-regression-" + gapId, gap.getQuery(), traceId, 5, null);
+            WsChatDoneVO answer = ragChatService.chatForEvaluation("gap-regression-" + gapId, gap.getQuery(), traceId, 5, null);
             sourceHit = answer != null && answer.getSources() != null && answer.getSources().stream()
                     .anyMatch(source -> gap.getLinkedDocId().equals(source.getDocId()));
             rejectResolved = answer != null && !Boolean.TRUE.equals(answer.getLowConfidence())

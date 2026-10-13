@@ -10,6 +10,7 @@ import org.example.online_used_marketplace.modules.ai.vo.AiopsEventVO;
 import org.example.online_used_marketplace.modules.ai.vo.AiopsMttrMetricsVO;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -49,6 +50,7 @@ public class AiopsEventController {
     }
 
     @PostMapping("/{eventId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<AiopsEventVO> approve(@PathVariable Long eventId,
                                         @RequestBody(required = false) AiopsApprovalRequestDTO dto) {
         Long operatorId = ToolAccessGuard.requireAdminUserId("aiops_event_approve");
@@ -56,6 +58,7 @@ public class AiopsEventController {
     }
 
     @PostMapping("/{eventId}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<AiopsEventVO> reject(@PathVariable Long eventId,
                                        @RequestBody(required = false) AiopsApprovalRequestDTO dto) {
         Long operatorId = ToolAccessGuard.requireAdminUserId("aiops_event_reject");

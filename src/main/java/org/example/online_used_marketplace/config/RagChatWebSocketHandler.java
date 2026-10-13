@@ -3,6 +3,7 @@ package org.example.online_used_marketplace.config;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.jsonwebtoken.Claims;
 import lombok.Data;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -12,8 +13,10 @@ import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterD
 import org.example.online_used_marketplace.modules.ai.dto.WsChatCancelRequestDTO;
 import org.example.online_used_marketplace.modules.ai.dto.WsChatStartRequestDTO;
 import org.example.online_used_marketplace.modules.ai.enums.WsMessageType;
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
 import org.example.online_used_marketplace.modules.ai.service.RagChatService;
 import org.example.online_used_marketplace.modules.ai.vo.*;
+import org.example.online_used_marketplace.utils.JwtUtil;
 import org.springframework.stereotype.Component;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.Validator;
@@ -21,9 +24,11 @@ import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.TextMessage;
 import org.springframework.web.socket.WebSocketSession;
 import org.springframework.web.socket.handler.TextWebSocketHandler;
+import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -41,6 +46,8 @@ public class RagChatWebSocketHandler extends TextWebSocketHandler {
     private final ObjectMapper mapper;
     private final RagChatService ragChatService;
     private final Validator validator;
+    private final JwtUtil jwtUtil;
+    private final RagChatRateLimiter rateLimiter;
     private final Map<String, SessionChatState> sessionStateMap = new ConcurrentHashMap<>();
     @Override
     public void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
@@ -174,6 +181,11 @@ public class RagChatWebSocketHandler extends TextWebSocketHandler {
     }
 
     private void handleStart(WebSocketSession session, WsChatStartRequestDTO req, String traceId) throws IOException {
+        MemoryScope scope = authenticate(session, req);
+        if (!rateLimiter.tryAcquire(scope.userId())) {
+            sendError(session, req, 429, traceId, "请求过于频繁，请稍后重试");
+            return;
+        }
         SessionChatState state = new SessionChatState();
         state.setCancelled(false);
         state.setTerminalSent(false);
@@ -184,7 +196,7 @@ public class RagChatWebSocketHandler extends TextWebSocketHandler {
 
         sendAck(session, req, traceId);
         KnowledgeSearchFilterDTO filter = req.getFilter();
-        WsChatDoneVO done = ragChatService.chat(session.getId(), req.getQuestion(), traceId, req.getTopK(), filter);
+        WsChatDoneVO done = ragChatService.chat(scope, req.getQuestion(), traceId, req.getTopK(), filter);
         if (done == null) {
             if (tryMarkTerminal(state)) {
                 sendError(session, req, ResultCode.INTERNAL_ERROR.getCode(), traceId, "服务器内部错误");
@@ -218,6 +230,39 @@ public class RagChatWebSocketHandler extends TextWebSocketHandler {
             sendDone(session, req, traceId, done);
         }
         sessionStateMap.remove(session.getId());
+    }
+
+    private MemoryScope authenticate(WebSocketSession session, WsChatStartRequestDTO req) {
+        String token = req == null ? null : req.getToken();
+        if (!StringUtils.hasText(token)) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "请先登录后再使用聊天功能");
+        }
+
+        try {
+            Claims claims = jwtUtil.parseToken(token.trim());
+            Object userIdClaim = claims.get("userId");
+            Date expiration = claims.getExpiration();
+            if (userIdClaim == null || expiration == null || !expiration.after(new Date())) {
+                throw new IllegalArgumentException("missing identity claim");
+            }
+
+            long userId = Long.parseLong(userIdClaim.toString());
+            if (userId <= 0L) {
+                throw new IllegalArgumentException("invalid identity claim");
+            }
+            Object handshakeUserId = session.getAttributes().get(JwtHandshakeInterceptor.USER_ID_ATTRIBUTE);
+            if (handshakeUserId != null && !Long.toString(userId).equals(handshakeUserId)) {
+                throw new BusinessException(ResultCode.UNAUTHORIZED, "握手身份与消息身份不一致，请重新连接");
+            }
+            String conversationId = StringUtils.hasText(req.getConversationId())
+                    ? req.getConversationId().trim() : session.getId();
+            return new MemoryScope(Long.toString(userId), conversationId);
+        } catch (BusinessException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            // Never log or expose the bearer token. The client only needs a stable auth error.
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "登录已过期或认证信息无效");
+        }
     }
 
     private void handleCancel(WebSocketSession session, WsChatCancelRequestDTO cancelReq, String traceId) throws IOException {

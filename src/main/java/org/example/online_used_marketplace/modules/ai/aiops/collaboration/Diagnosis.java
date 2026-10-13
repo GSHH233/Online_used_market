@@ -23,9 +23,18 @@ public class Diagnosis {
     private List<String> missingEvidence = new ArrayList<>();
 
     @Builder.Default
+    private List<String> conflictingEvidenceIds = new ArrayList<>();
+
+    @Builder.Default
+    private List<String> followUpQuestions = new ArrayList<>();
+
+    @Builder.Default
     private List<Hypothesis> rootCauseHypotheses = new ArrayList<>();
 
     private double confidence;
+
+    /** SUPPORTED / PROVISIONAL / INSUFFICIENT. */
+    private String conclusionStatus;
 
     private String recommendedActionCode;
 

@@ -1,6 +1,12 @@
 server:
   port: ${SERVER_PORT:8080}
 
+app:
+  cors:
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://localhost:*,http://127.0.0.1:*}
+  monitoring:
+    scrape-token: ${PROMETHEUS_SCRAPE_TOKEN:}
+
 spring:
   application:
     name: online-used-marketplace
@@ -8,7 +14,7 @@ spring:
   security:
     user:
       name: ${SPRING_SECURITY_USER:swagger}
-      password: ${SPRING_SECURITY_PASSWORD}
+      password: ${SPRING_SECURITY_PASSWORD:change-me}
 
   datasource:
     jdbc-url: ${MYSQL_URL:jdbc:mysql://localhost:3306/used_market?useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true}
@@ -50,7 +56,7 @@ spring:
     host: ${RABBITMQ_HOST:127.0.0.1}
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
-    password: ${RABBITMQ_PASSWORD}
+    password: ${RABBITMQ_PASSWORD:guest}
     virtual-host: ${RABBITMQ_VHOST:/}
     connection-timeout: ${RABBITMQ_CONNECTION_TIMEOUT:5s}
     publisher-confirm-type: correlated
@@ -67,11 +73,10 @@ spring:
     date-format: yyyy-MM-dd HH:mm:ss
 
 mybatis-plus:
-  mapper-locations: classpath:/mappers/*.xml
   type-aliases-package: org.example.online_used_marketplace.modules.*.entity
   configuration:
     map-underscore-to-camel-case: true
-    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}
+    log-impl: ${MYBATIS_LOG_IMPL:org.apache.ibatis.logging.nologging.NoLoggingImpl}
   global-config:
     db-config:
       id-type: auto
@@ -87,6 +92,9 @@ springdoc:
     path: /swagger-ui.html
 
 management:
+  server:
+    # Set MANAGEMENT_PORT=8081 to isolate management traffic. Preserve the existing port by default.
+    port: ${MANAGEMENT_PORT:${server.port:8080}}
   endpoints:
     web:
       exposure:
@@ -104,7 +112,7 @@ management:
         http.server.requests: 50ms,100ms,200ms,500ms,1s,2s,5s
 
 jwt:
-  secret: ${JWT_SECRET}
+  secret: ${JWT_SECRET:change-me-use-env-in-production-32bytes-min}
   expiration: ${JWT_EXPIRATION_MS:86400000}
   token-header: Authorization
   token-prefix: Bearer
@@ -115,13 +123,40 @@ sms:
 
 minio:
   endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
-  access-key: ${MINIO_ACCESS_KEY}
-  secret-key: ${MINIO_SECRET_KEY}
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket-name: ${MINIO_BUCKET:used-market}
 
 ai:
+  aiops:
+    alertmanager:
+      enabled: ${AIOPS_ALERTMANAGER_ENABLED:false}
+      webhook-token: ${AIOPS_ALERT_WEBHOOK_TOKEN:}
+      rabbit-enabled: ${AIOPS_ALERT_RABBIT_ENABLED:true}
+      max-alerts-per-delivery: ${AIOPS_ALERT_MAX_PER_DELIVERY:100}
+      confirm-timeout-ms: ${AIOPS_ALERT_CONFIRM_TIMEOUT_MS:3000}
+      max-retries: ${AIOPS_ALERT_MAX_RETRIES:2}
+      retry-delay-ms: ${AIOPS_ALERT_RETRY_DELAY_MS:3000}
+      consumer-concurrency: ${AIOPS_ALERT_CONSUMER_CONCURRENCY:1}
+      prefetch: ${AIOPS_ALERT_PREFETCH:1}
+    collaboration:
+      provider: ${AIOPS_COLLABORATION_PROVIDER:builtin}
+      specialist-timeout-ms: ${AIOPS_SPECIALIST_TIMEOUT_MS:3500}
+      max-parallelism: ${AIOPS_SPECIALIST_MAX_PARALLELISM:3}
+      min-plan-confidence: ${AIOPS_MIN_PLAN_CONFIDENCE:0.40}
+    demo:
+      enabled: ${AIOPS_DEMO_ENABLED:false}
+      redis-key-prefix: ${AIOPS_DEMO_REDIS_PREFIX:ai:aiops:demo:service:}
+      allowed-services:
+        - ${AIOPS_DEMO_SERVICE:marketplace-demo-worker}
+
   embedding:
     max-batch-size: ${AI_EMBEDDING_MAX_BATCH_SIZE:10}
+
+  generation:
+    # RAG Chat is a short, evidence-grounded answer path. Keep complex Agent work on
+    # spring.ai.openai.chat.options.model and route only this scene to a faster model.
+    rag-chat-model: ${AI_RAG_CHAT_MODEL:qwen-turbo}
 
   publish-feedback:
     auto-init: ${AI_PUBLISH_FEEDBACK_AUTO_INIT:true}
@@ -132,8 +167,8 @@ ai:
     recent-memory-limit: ${AI_TOKEN_RECENT_MEMORY_LIMIT:500}
     default-input-tokens: ${AI_TOKEN_DEFAULT_INPUT:4000}
     default-output-tokens: ${AI_TOKEN_DEFAULT_OUTPUT:500}
-    rag-chat-input-tokens: ${AI_TOKEN_RAG_INPUT:6000}
-    rag-chat-output-tokens: ${AI_TOKEN_RAG_OUTPUT:600}
+    rag-chat-input-tokens: ${AI_TOKEN_RAG_INPUT:4000}
+    rag-chat-output-tokens: ${AI_TOKEN_RAG_OUTPUT:320}
     agent-final-input-tokens: ${AI_TOKEN_AGENT_FINAL_INPUT:4000}
     agent-final-output-tokens: ${AI_TOKEN_AGENT_FINAL_OUTPUT:400}
     agent-planner-input-tokens: ${AI_TOKEN_AGENT_PLANNER_INPUT:2000}
@@ -189,17 +224,58 @@ ai:
       model-id: ${KNOWLEDGE_QUERY_REWRITE_MODEL_ID:configured-chat-model}
       cache-ttl-seconds: ${KNOWLEDGE_QUERY_REWRITE_CACHE_TTL_SECONDS:300}
       cache-max-entries: ${KNOWLEDGE_QUERY_REWRITE_CACHE_MAX_ENTRIES:1000}
-      timeout-ms: ${KNOWLEDGE_QUERY_REWRITE_TIMEOUT_MS:15000}
+      timeout-ms: ${KNOWLEDGE_QUERY_REWRITE_TIMEOUT_MS:3000}
       max-sub-queries: ${KNOWLEDGE_QUERY_REWRITE_MAX_SUB_QUERIES:3}
       max-synonym-queries: ${KNOWLEDGE_QUERY_REWRITE_MAX_SYNONYM_QUERIES:2}
       low-confidence-threshold: ${KNOWLEDGE_QUERY_REWRITE_LOW_CONFIDENCE:0.35}
       total-candidate-budget: ${KNOWLEDGE_QUERY_REWRITE_CANDIDATE_BUDGET:60}
+    lifecycle:
+      allow-legacy-drafts: ${KNOWLEDGE_ALLOW_LEGACY_DRAFTS:true}
+      retired-retention-days: ${KNOWLEDGE_RETIRED_RETENTION_DAYS:7}
+      cleanup-enabled: ${KNOWLEDGE_RETIRED_CLEANUP_ENABLED:true}
+      cleanup-initial-delay-ms: ${KNOWLEDGE_RETIRED_CLEANUP_INITIAL_DELAY_MS:60000}
+      cleanup-fixed-delay-ms: ${KNOWLEDGE_RETIRED_CLEANUP_FIXED_DELAY_MS:3600000}
+      cleanup-batch-size: ${KNOWLEDGE_RETIRED_CLEANUP_BATCH_SIZE:20}
+    retrieval:
+      rerank-enabled: ${KNOWLEDGE_RERANK_ENABLED:true}
+      dynamic-top-k-enabled: ${KNOWLEDGE_DYNAMIC_TOPK_ENABLED:true}
+      candidate-k: ${KNOWLEDGE_RERANK_CANDIDATE_K:20}
+      max-candidate-k: ${KNOWLEDGE_RERANK_MAX_CANDIDATE_K:40}
+      evidence-candidates-per-requirement: ${KNOWLEDGE_RERANK_EVIDENCE_CANDIDATES_PER_REQUIREMENT:2}
+      min-results: ${KNOWLEDGE_RERANK_MIN_RESULTS:1}
+      max-per-logical-knowledge: ${KNOWLEDGE_RERANK_MAX_PER_LOGICAL:2}
+      min-rerank-score: ${KNOWLEDGE_RERANK_MIN_SCORE:0.18}
+      relative-score-threshold: ${KNOWLEDGE_RERANK_RELATIVE_THRESHOLD:0.78}
+      retrieval-weight: ${KNOWLEDGE_RERANK_RETRIEVAL_WEIGHT:0.30}
+      content-weight: ${KNOWLEDGE_RERANK_CONTENT_WEIGHT:0.40}
+      title-weight: ${KNOWLEDGE_RERANK_TITLE_WEIGHT:0.25}
+      trust-weight: ${KNOWLEDGE_RERANK_TRUST_WEIGHT:0.05}
+      concept-weight: ${KNOWLEDGE_RERANK_CONCEPT_WEIGHT:0.35}
+      diversity-lambda: ${KNOWLEDGE_RERANK_DIVERSITY_LAMBDA:0.85}
+      facet-coverage-enabled: ${KNOWLEDGE_RERANK_FACET_COVERAGE_ENABLED:true}
+      facet-coverage-weight: ${KNOWLEDGE_RERANK_FACET_COVERAGE_WEIGHT:0.25}
+      min-facet-coverage: ${KNOWLEDGE_RERANK_MIN_FACET_COVERAGE:0.80}
+      facet-mismatch-penalty: ${KNOWLEDGE_RERANK_FACET_MISMATCH_PENALTY:0.70}
+      evidence-plan-enabled: ${KNOWLEDGE_RERANK_EVIDENCE_PLAN_ENABLED:true}
+      evidence-plan-weight: ${KNOWLEDGE_RERANK_EVIDENCE_PLAN_WEIGHT:0.40}
+      min-evidence-coverage: ${KNOWLEDGE_RERANK_MIN_EVIDENCE_COVERAGE:0.90}
+      parallelism: ${KNOWLEDGE_RETRIEVAL_PARALLELISM:6}
+      parallel-queue-capacity: ${KNOWLEDGE_RETRIEVAL_PARALLEL_QUEUE_CAPACITY:100}
+      parallel-timeout-ms: ${KNOWLEDGE_RETRIEVAL_PARALLEL_TIMEOUT_MS:5000}
 
   chat:
+    rate-limit-per-minute: ${AI_CHAT_RATE_LIMIT_PER_MINUTE:10}
     memory:
+      store: ${AI_CHAT_MEMORY_STORE:redis}
       enabled: ${AI_CHAT_MEMORY_ENABLED:true}
       max-turns: ${AI_CHAT_MEMORY_MAX_TURNS:5}
       ttl-minutes: ${AI_CHAT_MEMORY_TTL_MINUTES:30}
+
+  memory:
+    l2:
+      recall:
+        candidate-limit: ${AI_MEMORY_L2_CANDIDATE_LIMIT:1000}
+        audit-exclusion-limit: ${AI_MEMORY_L2_AUDIT_EXCLUSION_LIMIT:100}
 
   vector:
     provider: ${AI_VECTOR_PROVIDER:milvus}
@@ -274,7 +350,7 @@ ai:
           fallback-summary: Harness 故障注入工具已触发降级
 
     runtime:
-      fault-injection-enabled: ${AI_AGENT_RUNTIME_FAULT_INJECTION_ENABLED:true}
+      fault-injection-enabled: ${AI_AGENT_RUNTIME_FAULT_INJECTION_ENABLED:false}
   memory-graph:
     pgsql:
       enabled: ${MEMORY_GRAPH_PG_ENABLED:true}

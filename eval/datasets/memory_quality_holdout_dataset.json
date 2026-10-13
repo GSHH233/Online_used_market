@@ -1,0 +1,3886 @@
+[
+  {
+    "caseId": "MEM-HOLDOUT-IDE-001",
+    "split": "HOLDOUT",
+    "category": "identity",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-01",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "own-write",
+        "eventId": "MEM-HOLDOUT-IDE-001-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "identity-1",
+        "content": "根据最近记录，显卡温度偏高，存在矿卡风险",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "foreign-write",
+        "eventId": "MEM-HOLDOUT-IDE-001-E2",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "identity-1",
+        "content": "另一用户偏好与本题无关的复古音箱",
+        "importance": 0.95,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-IDE-001-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      }
+    ],
+    "query": {
+      "text": "请回忆温度偏高矿卡风险",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "own-write"
+    ],
+    "goldMemoryAliases": [
+      "own-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "foreign-write",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "identity-1": "根据最近记录，显卡温度偏高，存在矿卡风险"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "own-write"
+      ],
+      "forbiddenAliases": [
+        "foreign-write",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [
+      {
+        "from": "温度偏高",
+        "to": "矿卡风险",
+        "type": "CAUSES_RISK"
+      }
+    ],
+    "forbiddenEdges": [
+      {
+        "from": "温度偏高",
+        "to": "动漫",
+        "type": "UNRELATED"
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-HOLDOUT-IDE-002",
+    "split": "HOLDOUT",
+    "category": "identity",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-02",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "own-write",
+        "eventId": "MEM-HOLDOUT-IDE-002-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "identity-2",
+        "content": "根据最近记录，用户正在学习 Java 和 K8s",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "foreign-write",
+        "eventId": "MEM-HOLDOUT-IDE-002-E2",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "identity-2",
+        "content": "另一用户偏好与本题无关的复古音箱",
+        "importance": 0.95,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-IDE-002-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      }
+    ],
+    "query": {
+      "text": "请回忆Java K8s 学习路线",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "own-write"
+    ],
+    "goldMemoryAliases": [
+      "own-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "foreign-write",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "identity-2": "根据最近记录，用户正在学习 Java 和 K8s"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "own-write"
+      ],
+      "forbiddenAliases": [
+        "foreign-write",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [
+      {
+        "from": "Java",
+        "to": "K8s",
+        "type": "LEARNING_PATH"
+      }
+    ],
+    "forbiddenEdges": [
+      {
+        "from": "Java",
+        "to": "动漫",
+        "type": "UNRELATED"
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-HOLDOUT-IDE-003",
+    "split": "HOLDOUT",
+    "category": "identity",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-03",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "own-write",
+        "eventId": "MEM-HOLDOUT-IDE-003-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "identity-3",
+        "content": "用户偏好 Steam Deck 掌机",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "foreign-write",
+        "eventId": "MEM-HOLDOUT-IDE-003-E2",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "identity-3",
+        "content": "另一用户偏好与本题无关的复古音箱",
+        "importance": 0.95,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-IDE-003-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      }
+    ],
+    "query": {
+      "text": "掌机偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "own-write"
+    ],
+    "goldMemoryAliases": [
+      "own-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "foreign-write",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "identity-3": "用户偏好 Steam Deck 掌机"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "own-write"
+      ],
+      "forbiddenAliases": [
+        "foreign-write",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-IDE-004",
+    "split": "HOLDOUT",
+    "category": "identity",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-04",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "own-write",
+        "eventId": "MEM-HOLDOUT-IDE-004-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "identity-4",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "foreign-write",
+        "eventId": "MEM-HOLDOUT-IDE-004-E2",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "identity-4",
+        "content": "另一用户偏好与本题无关的复古音箱",
+        "importance": 0.95,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-IDE-004-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      }
+    ],
+    "query": {
+      "text": "办公鼠标偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "own-write"
+    ],
+    "goldMemoryAliases": [
+      "own-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "foreign-write",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "identity-4": "用户偏好 Logitech MX Master 鼠标"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "own-write"
+      ],
+      "forbiddenAliases": [
+        "foreign-write",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-UPD-005",
+    "split": "HOLDOUT",
+    "category": "update",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-05",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "old-value",
+        "eventId": "MEM-HOLDOUT-UPD-005-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "update-1",
+        "content": "旧偏好：请回忆无发票凭证风险未确认",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "corrected-value",
+        "eventId": "MEM-HOLDOUT-UPD-005-E2",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "update-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-UPD-005-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      }
+    ],
+    "query": {
+      "text": "请回忆无发票凭证风险",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "corrected-value"
+    ],
+    "goldMemoryAliases": [
+      "corrected-value"
+    ],
+    "forbiddenMemoryAliases": [
+      "old-value",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "update-1": "根据最近记录，商品无发票，存在凭证风险"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "corrected-value"
+      ],
+      "forbiddenAliases": [
+        "old-value",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [
+      {
+        "from": "无发票",
+        "to": "凭证风险",
+        "type": "CAUSES_RISK"
+      }
+    ],
+    "forbiddenEdges": [
+      {
+        "from": "无发票",
+        "to": "动漫",
+        "type": "UNRELATED"
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-HOLDOUT-UPD-006",
+    "split": "HOLDOUT",
+    "category": "update",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-06",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "old-value",
+        "eventId": "MEM-HOLDOUT-UPD-006-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "update-2",
+        "content": "旧偏好：办公鼠标偏好未确认",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "corrected-value",
+        "eventId": "MEM-HOLDOUT-UPD-006-E2",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "update-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-UPD-006-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      }
+    ],
+    "query": {
+      "text": "办公鼠标偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "corrected-value"
+    ],
+    "goldMemoryAliases": [
+      "corrected-value"
+    ],
+    "forbiddenMemoryAliases": [
+      "old-value",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "update-2": "用户偏好 Logitech MX Master 鼠标"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "corrected-value"
+      ],
+      "forbiddenAliases": [
+        "old-value",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-UPD-007",
+    "split": "HOLDOUT",
+    "category": "update",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-07",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "old-value",
+        "eventId": "MEM-HOLDOUT-UPD-007-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "update-3",
+        "content": "旧偏好：航拍设备关注点未确认",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "corrected-value",
+        "eventId": "MEM-HOLDOUT-UPD-007-E2",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "update-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-UPD-007-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      }
+    ],
+    "query": {
+      "text": "航拍设备关注点",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "corrected-value"
+    ],
+    "goldMemoryAliases": [
+      "corrected-value"
+    ],
+    "forbiddenMemoryAliases": [
+      "old-value",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "update-3": "用户关注 DJI Air 3 航拍无人机"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "corrected-value"
+      ],
+      "forbiddenAliases": [
+        "old-value",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-UPD-008",
+    "split": "HOLDOUT",
+    "category": "update",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-08",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "old-value",
+        "eventId": "MEM-HOLDOUT-UPD-008-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "update-4",
+        "content": "旧偏好：运动手表偏好未确认",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "corrected-value",
+        "eventId": "MEM-HOLDOUT-UPD-008-E2",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "update-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-UPD-008-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      }
+    ],
+    "query": {
+      "text": "运动手表偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "corrected-value"
+    ],
+    "goldMemoryAliases": [
+      "corrected-value"
+    ],
+    "forbiddenMemoryAliases": [
+      "old-value",
+      "noise-1"
+    ],
+    "expectedActiveValues": {
+      "update-4": "用户偏好 Garmin Forerunner 265 运动手表"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "corrected-value"
+      ],
+      "forbiddenAliases": [
+        "old-value",
+        "noise-1"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-NEG-009",
+    "split": "HOLDOUT",
+    "category": "negation",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-09",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "initial-value",
+        "eventId": "MEM-HOLDOUT-NEG-009-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-1",
+        "content": "用户更喜欢 Bose QuietComfort Ultra 降噪耳机",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "delete-value",
+        "eventId": "MEM-HOLDOUT-NEG-009-E2",
+        "operation": "DELETE",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-1",
+        "content": "用户明确撤回该偏好",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "old-replay",
+        "eventId": "MEM-HOLDOUT-NEG-009-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-1",
+        "content": "用户更喜欢 Bose QuietComfort Ultra 降噪耳机",
+        "importance": 0.7,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "initial-value"
+      }
+    ],
+    "query": {
+      "text": "降噪耳机选择",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [],
+    "goldMemoryAliases": [],
+    "forbiddenMemoryAliases": [
+      "initial-value",
+      "old-replay"
+    ],
+    "expectedActiveValues": {},
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [],
+      "forbiddenAliases": [
+        "initial-value",
+        "old-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-NEG-010",
+    "split": "HOLDOUT",
+    "category": "negation",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-10",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "initial-value",
+        "eventId": "MEM-HOLDOUT-NEG-010-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-2",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "delete-value",
+        "eventId": "MEM-HOLDOUT-NEG-010-E2",
+        "operation": "DELETE",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-2",
+        "content": "用户明确撤回该偏好",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "old-replay",
+        "eventId": "MEM-HOLDOUT-NEG-010-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-2",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.7,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "initial-value"
+      }
+    ],
+    "query": {
+      "text": "航拍设备关注点",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [],
+    "goldMemoryAliases": [],
+    "forbiddenMemoryAliases": [
+      "initial-value",
+      "old-replay"
+    ],
+    "expectedActiveValues": {},
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [],
+      "forbiddenAliases": [
+        "initial-value",
+        "old-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-NEG-011",
+    "split": "HOLDOUT",
+    "category": "negation",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-11",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "initial-value",
+        "eventId": "MEM-HOLDOUT-NEG-011-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-3",
+        "content": "用户偏好 Kindle Paperwhite 阅读器",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "delete-value",
+        "eventId": "MEM-HOLDOUT-NEG-011-E2",
+        "operation": "DELETE",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-3",
+        "content": "用户明确撤回该偏好",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "old-replay",
+        "eventId": "MEM-HOLDOUT-NEG-011-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-3",
+        "content": "用户偏好 Kindle Paperwhite 阅读器",
+        "importance": 0.7,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "initial-value"
+      }
+    ],
+    "query": {
+      "text": "阅读器偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [],
+    "goldMemoryAliases": [],
+    "forbiddenMemoryAliases": [
+      "initial-value",
+      "old-replay"
+    ],
+    "expectedActiveValues": {},
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [],
+      "forbiddenAliases": [
+        "initial-value",
+        "old-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-NEG-012",
+    "split": "HOLDOUT",
+    "category": "negation",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-12",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "initial-value",
+        "eventId": "MEM-HOLDOUT-NEG-012-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "delete-value",
+        "eventId": "MEM-HOLDOUT-NEG-012-E2",
+        "operation": "DELETE",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-4",
+        "content": "用户明确撤回该偏好",
+        "importance": 0.7,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "old-replay",
+        "eventId": "MEM-HOLDOUT-NEG-012-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "negation-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.7,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "initial-value"
+      }
+    ],
+    "query": {
+      "text": "运动手表偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [],
+    "goldMemoryAliases": [],
+    "forbiddenMemoryAliases": [
+      "initial-value",
+      "old-replay"
+    ],
+    "expectedActiveValues": {},
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [],
+      "forbiddenAliases": [
+        "initial-value",
+        "old-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-DUP-013",
+    "split": "HOLDOUT",
+    "category": "duplicate",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-13",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "first-write",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "same-replay-1",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-2",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-3",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-4",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-5",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-6",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-7",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-8",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-9",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-10",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-11",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-12",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-13",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-14",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-15",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-16",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-17",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-18",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-19",
+        "eventId": "MEM-HOLDOUT-DUP-013-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      }
+    ],
+    "query": {
+      "text": "请回忆无发票凭证风险",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "first-write"
+    ],
+    "goldMemoryAliases": [
+      "first-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "same-replay-1",
+      "same-replay-2",
+      "same-replay-3",
+      "same-replay-4",
+      "same-replay-5",
+      "same-replay-6",
+      "same-replay-7",
+      "same-replay-8",
+      "same-replay-9",
+      "same-replay-10",
+      "same-replay-11",
+      "same-replay-12",
+      "same-replay-13",
+      "same-replay-14",
+      "same-replay-15",
+      "same-replay-16",
+      "same-replay-17",
+      "same-replay-18",
+      "same-replay-19"
+    ],
+    "expectedActiveValues": {
+      "duplicate-1": "根据最近记录，商品无发票，存在凭证风险"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "first-write"
+      ],
+      "forbiddenAliases": [
+        "same-replay-1",
+        "same-replay-2",
+        "same-replay-3",
+        "same-replay-4",
+        "same-replay-5",
+        "same-replay-6",
+        "same-replay-7",
+        "same-replay-8",
+        "same-replay-9",
+        "same-replay-10",
+        "same-replay-11",
+        "same-replay-12",
+        "same-replay-13",
+        "same-replay-14",
+        "same-replay-15",
+        "same-replay-16",
+        "same-replay-17",
+        "same-replay-18",
+        "same-replay-19"
+      ]
+    },
+    "expectedEdges": [
+      {
+        "from": "无发票",
+        "to": "凭证风险",
+        "type": "CAUSES_RISK"
+      }
+    ],
+    "forbiddenEdges": [
+      {
+        "from": "无发票",
+        "to": "动漫",
+        "type": "UNRELATED"
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-HOLDOUT-DUP-014",
+    "split": "HOLDOUT",
+    "category": "duplicate",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-14",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "first-write",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "same-replay-1",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-2",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-3",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-4",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-5",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-6",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-7",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-8",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-9",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-10",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-11",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-12",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-13",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-14",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-15",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-16",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-17",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-18",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-19",
+        "eventId": "MEM-HOLDOUT-DUP-014-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      }
+    ],
+    "query": {
+      "text": "办公鼠标偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "first-write"
+    ],
+    "goldMemoryAliases": [
+      "first-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "same-replay-1",
+      "same-replay-2",
+      "same-replay-3",
+      "same-replay-4",
+      "same-replay-5",
+      "same-replay-6",
+      "same-replay-7",
+      "same-replay-8",
+      "same-replay-9",
+      "same-replay-10",
+      "same-replay-11",
+      "same-replay-12",
+      "same-replay-13",
+      "same-replay-14",
+      "same-replay-15",
+      "same-replay-16",
+      "same-replay-17",
+      "same-replay-18",
+      "same-replay-19"
+    ],
+    "expectedActiveValues": {
+      "duplicate-2": "用户偏好 Logitech MX Master 鼠标"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "first-write"
+      ],
+      "forbiddenAliases": [
+        "same-replay-1",
+        "same-replay-2",
+        "same-replay-3",
+        "same-replay-4",
+        "same-replay-5",
+        "same-replay-6",
+        "same-replay-7",
+        "same-replay-8",
+        "same-replay-9",
+        "same-replay-10",
+        "same-replay-11",
+        "same-replay-12",
+        "same-replay-13",
+        "same-replay-14",
+        "same-replay-15",
+        "same-replay-16",
+        "same-replay-17",
+        "same-replay-18",
+        "same-replay-19"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-DUP-015",
+    "split": "HOLDOUT",
+    "category": "duplicate",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-15",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "first-write",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "same-replay-1",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-2",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-3",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-4",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-5",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-6",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-7",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-8",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-9",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-10",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-11",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-12",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-13",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-14",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-15",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-16",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-17",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-18",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-19",
+        "eventId": "MEM-HOLDOUT-DUP-015-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "first-write"
+      }
+    ],
+    "query": {
+      "text": "航拍设备关注点",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "first-write"
+    ],
+    "goldMemoryAliases": [
+      "first-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "same-replay-1",
+      "same-replay-2",
+      "same-replay-3",
+      "same-replay-4",
+      "same-replay-5",
+      "same-replay-6",
+      "same-replay-7",
+      "same-replay-8",
+      "same-replay-9",
+      "same-replay-10",
+      "same-replay-11",
+      "same-replay-12",
+      "same-replay-13",
+      "same-replay-14",
+      "same-replay-15",
+      "same-replay-16",
+      "same-replay-17",
+      "same-replay-18",
+      "same-replay-19"
+    ],
+    "expectedActiveValues": {
+      "duplicate-3": "用户关注 DJI Air 3 航拍无人机"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "first-write"
+      ],
+      "forbiddenAliases": [
+        "same-replay-1",
+        "same-replay-2",
+        "same-replay-3",
+        "same-replay-4",
+        "same-replay-5",
+        "same-replay-6",
+        "same-replay-7",
+        "same-replay-8",
+        "same-replay-9",
+        "same-replay-10",
+        "same-replay-11",
+        "same-replay-12",
+        "same-replay-13",
+        "same-replay-14",
+        "same-replay-15",
+        "same-replay-16",
+        "same-replay-17",
+        "same-replay-18",
+        "same-replay-19"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-DUP-016",
+    "split": "HOLDOUT",
+    "category": "duplicate",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-16",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "first-write",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "same-replay-1",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-2",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-3",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-4",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-5",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-6",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-7",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-8",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-9",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-10",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-11",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-12",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-13",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-14",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-15",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-16",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-17",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-18",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      },
+      {
+        "alias": "same-replay-19",
+        "eventId": "MEM-HOLDOUT-DUP-016-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "duplicate-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "first-write"
+      }
+    ],
+    "query": {
+      "text": "运动手表偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "first-write"
+    ],
+    "goldMemoryAliases": [
+      "first-write"
+    ],
+    "forbiddenMemoryAliases": [
+      "same-replay-1",
+      "same-replay-2",
+      "same-replay-3",
+      "same-replay-4",
+      "same-replay-5",
+      "same-replay-6",
+      "same-replay-7",
+      "same-replay-8",
+      "same-replay-9",
+      "same-replay-10",
+      "same-replay-11",
+      "same-replay-12",
+      "same-replay-13",
+      "same-replay-14",
+      "same-replay-15",
+      "same-replay-16",
+      "same-replay-17",
+      "same-replay-18",
+      "same-replay-19"
+    ],
+    "expectedActiveValues": {
+      "duplicate-4": "用户偏好 Garmin Forerunner 265 运动手表"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "first-write"
+      ],
+      "forbiddenAliases": [
+        "same-replay-1",
+        "same-replay-2",
+        "same-replay-3",
+        "same-replay-4",
+        "same-replay-5",
+        "same-replay-6",
+        "same-replay-7",
+        "same-replay-8",
+        "same-replay-9",
+        "same-replay-10",
+        "same-replay-11",
+        "same-replay-12",
+        "same-replay-13",
+        "same-replay-14",
+        "same-replay-15",
+        "same-replay-16",
+        "same-replay-17",
+        "same-replay-18",
+        "same-replay-19"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-REC-017",
+    "split": "HOLDOUT",
+    "category": "recovery",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-17",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "before-restart",
+        "eventId": "MEM-HOLDOUT-REC-017-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "recovery-1",
+        "content": "根据最近记录，显卡温度偏高，存在矿卡风险",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "after-restart-replay",
+        "eventId": "MEM-HOLDOUT-REC-017-E1",
+        "operation": "REPLAY",
+        "memoryType": "FACT",
+        "slotKey": "recovery-1",
+        "content": "根据最近记录，显卡温度偏高，存在矿卡风险",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "before-restart"
+      }
+    ],
+    "query": {
+      "text": "请回忆温度偏高矿卡风险",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "before-restart"
+    ],
+    "goldMemoryAliases": [
+      "before-restart"
+    ],
+    "forbiddenMemoryAliases": [
+      "after-restart-replay"
+    ],
+    "expectedActiveValues": {
+      "recovery-1": "根据最近记录，显卡温度偏高，存在矿卡风险"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "before-restart"
+      ],
+      "forbiddenAliases": [
+        "after-restart-replay"
+      ]
+    },
+    "expectedEdges": [
+      {
+        "from": "温度偏高",
+        "to": "矿卡风险",
+        "type": "CAUSES_RISK"
+      }
+    ],
+    "forbiddenEdges": [
+      {
+        "from": "温度偏高",
+        "to": "动漫",
+        "type": "UNRELATED"
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-HOLDOUT-REC-018",
+    "split": "HOLDOUT",
+    "category": "recovery",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-18",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "before-restart",
+        "eventId": "MEM-HOLDOUT-REC-018-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "recovery-2",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "after-restart-replay",
+        "eventId": "MEM-HOLDOUT-REC-018-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "recovery-2",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "before-restart"
+      }
+    ],
+    "query": {
+      "text": "运动手表偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "before-restart"
+    ],
+    "goldMemoryAliases": [
+      "before-restart"
+    ],
+    "forbiddenMemoryAliases": [
+      "after-restart-replay"
+    ],
+    "expectedActiveValues": {
+      "recovery-2": "用户偏好 Garmin Forerunner 265 运动手表"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "before-restart"
+      ],
+      "forbiddenAliases": [
+        "after-restart-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-REC-019",
+    "split": "HOLDOUT",
+    "category": "recovery",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-19",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "before-restart",
+        "eventId": "MEM-HOLDOUT-REC-019-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "recovery-3",
+        "content": "用户偏好 Steam Deck 掌机",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "after-restart-replay",
+        "eventId": "MEM-HOLDOUT-REC-019-E1",
+        "operation": "REPLAY",
+        "memoryType": "FACT",
+        "slotKey": "recovery-3",
+        "content": "用户偏好 Steam Deck 掌机",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-b",
+        "payloadAlias": "before-restart"
+      }
+    ],
+    "query": {
+      "text": "掌机偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "before-restart"
+    ],
+    "goldMemoryAliases": [
+      "before-restart"
+    ],
+    "forbiddenMemoryAliases": [
+      "after-restart-replay"
+    ],
+    "expectedActiveValues": {
+      "recovery-3": "用户偏好 Steam Deck 掌机"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "before-restart"
+      ],
+      "forbiddenAliases": [
+        "after-restart-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-REC-020",
+    "split": "HOLDOUT",
+    "category": "recovery",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-20",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "before-restart",
+        "eventId": "MEM-HOLDOUT-REC-020-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "recovery-4",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "after-restart-replay",
+        "eventId": "MEM-HOLDOUT-REC-020-E1",
+        "operation": "REPLAY",
+        "memoryType": "PREFERENCE",
+        "slotKey": "recovery-4",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": false,
+        "ownerAlias": "user-a",
+        "payloadAlias": "before-restart"
+      }
+    ],
+    "query": {
+      "text": "办公鼠标偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "before-restart"
+    ],
+    "goldMemoryAliases": [
+      "before-restart"
+    ],
+    "forbiddenMemoryAliases": [
+      "after-restart-replay"
+    ],
+    "expectedActiveValues": {
+      "recovery-4": "用户偏好 Logitech MX Master 鼠标"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "before-restart"
+      ],
+      "forbiddenAliases": [
+        "after-restart-replay"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-LON-021",
+    "split": "HOLDOUT",
+    "category": "long_history",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-21",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-LON-021-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-2",
+        "eventId": "MEM-HOLDOUT-LON-021-N2",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-2",
+        "content": "本轮临时对话噪声 2",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-3",
+        "eventId": "MEM-HOLDOUT-LON-021-N3",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-3",
+        "content": "本轮临时对话噪声 3",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-4",
+        "eventId": "MEM-HOLDOUT-LON-021-N4",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-4",
+        "content": "本轮临时对话噪声 4",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-5",
+        "eventId": "MEM-HOLDOUT-LON-021-N5",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-5",
+        "content": "本轮临时对话噪声 5",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-6",
+        "eventId": "MEM-HOLDOUT-LON-021-N6",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-6",
+        "content": "本轮临时对话噪声 6",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-7",
+        "eventId": "MEM-HOLDOUT-LON-021-N7",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-7",
+        "content": "本轮临时对话噪声 7",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-8",
+        "eventId": "MEM-HOLDOUT-LON-021-N8",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-8",
+        "content": "本轮临时对话噪声 8",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-9",
+        "eventId": "MEM-HOLDOUT-LON-021-N9",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-9",
+        "content": "本轮临时对话噪声 9",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-10",
+        "eventId": "MEM-HOLDOUT-LON-021-N10",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-10",
+        "content": "本轮临时对话噪声 10",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-11",
+        "eventId": "MEM-HOLDOUT-LON-021-N11",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-11",
+        "content": "本轮临时对话噪声 11",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-12",
+        "eventId": "MEM-HOLDOUT-LON-021-N12",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-12",
+        "content": "本轮临时对话噪声 12",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-13",
+        "eventId": "MEM-HOLDOUT-LON-021-N13",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-13",
+        "content": "本轮临时对话噪声 13",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-14",
+        "eventId": "MEM-HOLDOUT-LON-021-N14",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-14",
+        "content": "本轮临时对话噪声 14",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-15",
+        "eventId": "MEM-HOLDOUT-LON-021-N15",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-15",
+        "content": "本轮临时对话噪声 15",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-16",
+        "eventId": "MEM-HOLDOUT-LON-021-N16",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-16",
+        "content": "本轮临时对话噪声 16",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-17",
+        "eventId": "MEM-HOLDOUT-LON-021-N17",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-17",
+        "content": "本轮临时对话噪声 17",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-18",
+        "eventId": "MEM-HOLDOUT-LON-021-N18",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-18",
+        "content": "本轮临时对话噪声 18",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-19",
+        "eventId": "MEM-HOLDOUT-LON-021-N19",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-19",
+        "content": "本轮临时对话噪声 19",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-20",
+        "eventId": "MEM-HOLDOUT-LON-021-N20",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-20",
+        "content": "本轮临时对话噪声 20",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "long-history-gold",
+        "eventId": "MEM-HOLDOUT-LON-021-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "long_history-1",
+        "content": "根据最近记录，商品无发票，存在凭证风险",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      }
+    ],
+    "query": {
+      "text": "请回忆无发票凭证风险",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "long-history-gold"
+    ],
+    "goldMemoryAliases": [
+      "long-history-gold"
+    ],
+    "forbiddenMemoryAliases": [
+      "noise-1",
+      "noise-2",
+      "noise-3",
+      "noise-4",
+      "noise-5",
+      "noise-6",
+      "noise-7",
+      "noise-8",
+      "noise-9",
+      "noise-10",
+      "noise-11",
+      "noise-12",
+      "noise-13",
+      "noise-14",
+      "noise-15",
+      "noise-16",
+      "noise-17",
+      "noise-18",
+      "noise-19",
+      "noise-20"
+    ],
+    "expectedActiveValues": {
+      "long_history-1": "根据最近记录，商品无发票，存在凭证风险"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "long-history-gold"
+      ],
+      "forbiddenAliases": [
+        "noise-1",
+        "noise-2",
+        "noise-3",
+        "noise-4",
+        "noise-5",
+        "noise-6",
+        "noise-7",
+        "noise-8",
+        "noise-9",
+        "noise-10",
+        "noise-11",
+        "noise-12",
+        "noise-13",
+        "noise-14",
+        "noise-15",
+        "noise-16",
+        "noise-17",
+        "noise-18",
+        "noise-19",
+        "noise-20"
+      ]
+    },
+    "expectedEdges": [
+      {
+        "from": "无发票",
+        "to": "凭证风险",
+        "type": "CAUSES_RISK"
+      }
+    ],
+    "forbiddenEdges": [
+      {
+        "from": "无发票",
+        "to": "动漫",
+        "type": "UNRELATED"
+      }
+    ]
+  },
+  {
+    "caseId": "MEM-HOLDOUT-LON-022",
+    "split": "HOLDOUT",
+    "category": "long_history",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-22",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-LON-022-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-2",
+        "eventId": "MEM-HOLDOUT-LON-022-N2",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-2",
+        "content": "本轮临时对话噪声 2",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-3",
+        "eventId": "MEM-HOLDOUT-LON-022-N3",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-3",
+        "content": "本轮临时对话噪声 3",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-4",
+        "eventId": "MEM-HOLDOUT-LON-022-N4",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-4",
+        "content": "本轮临时对话噪声 4",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-5",
+        "eventId": "MEM-HOLDOUT-LON-022-N5",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-5",
+        "content": "本轮临时对话噪声 5",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-6",
+        "eventId": "MEM-HOLDOUT-LON-022-N6",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-6",
+        "content": "本轮临时对话噪声 6",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-7",
+        "eventId": "MEM-HOLDOUT-LON-022-N7",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-7",
+        "content": "本轮临时对话噪声 7",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-8",
+        "eventId": "MEM-HOLDOUT-LON-022-N8",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-8",
+        "content": "本轮临时对话噪声 8",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-9",
+        "eventId": "MEM-HOLDOUT-LON-022-N9",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-9",
+        "content": "本轮临时对话噪声 9",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-10",
+        "eventId": "MEM-HOLDOUT-LON-022-N10",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-10",
+        "content": "本轮临时对话噪声 10",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-11",
+        "eventId": "MEM-HOLDOUT-LON-022-N11",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-11",
+        "content": "本轮临时对话噪声 11",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-12",
+        "eventId": "MEM-HOLDOUT-LON-022-N12",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-12",
+        "content": "本轮临时对话噪声 12",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-13",
+        "eventId": "MEM-HOLDOUT-LON-022-N13",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-13",
+        "content": "本轮临时对话噪声 13",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-14",
+        "eventId": "MEM-HOLDOUT-LON-022-N14",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-14",
+        "content": "本轮临时对话噪声 14",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-15",
+        "eventId": "MEM-HOLDOUT-LON-022-N15",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-15",
+        "content": "本轮临时对话噪声 15",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-16",
+        "eventId": "MEM-HOLDOUT-LON-022-N16",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-16",
+        "content": "本轮临时对话噪声 16",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-17",
+        "eventId": "MEM-HOLDOUT-LON-022-N17",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-17",
+        "content": "本轮临时对话噪声 17",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-18",
+        "eventId": "MEM-HOLDOUT-LON-022-N18",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-18",
+        "content": "本轮临时对话噪声 18",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-19",
+        "eventId": "MEM-HOLDOUT-LON-022-N19",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-19",
+        "content": "本轮临时对话噪声 19",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-20",
+        "eventId": "MEM-HOLDOUT-LON-022-N20",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-20",
+        "content": "本轮临时对话噪声 20",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "long-history-gold",
+        "eventId": "MEM-HOLDOUT-LON-022-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "long_history-2",
+        "content": "用户偏好 Logitech MX Master 鼠标",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      }
+    ],
+    "query": {
+      "text": "办公鼠标偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "long-history-gold"
+    ],
+    "goldMemoryAliases": [
+      "long-history-gold"
+    ],
+    "forbiddenMemoryAliases": [
+      "noise-1",
+      "noise-2",
+      "noise-3",
+      "noise-4",
+      "noise-5",
+      "noise-6",
+      "noise-7",
+      "noise-8",
+      "noise-9",
+      "noise-10",
+      "noise-11",
+      "noise-12",
+      "noise-13",
+      "noise-14",
+      "noise-15",
+      "noise-16",
+      "noise-17",
+      "noise-18",
+      "noise-19",
+      "noise-20"
+    ],
+    "expectedActiveValues": {
+      "long_history-2": "用户偏好 Logitech MX Master 鼠标"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "long-history-gold"
+      ],
+      "forbiddenAliases": [
+        "noise-1",
+        "noise-2",
+        "noise-3",
+        "noise-4",
+        "noise-5",
+        "noise-6",
+        "noise-7",
+        "noise-8",
+        "noise-9",
+        "noise-10",
+        "noise-11",
+        "noise-12",
+        "noise-13",
+        "noise-14",
+        "noise-15",
+        "noise-16",
+        "noise-17",
+        "noise-18",
+        "noise-19",
+        "noise-20"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-LON-023",
+    "split": "HOLDOUT",
+    "category": "long_history",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-b",
+    "sessionAlias": "holdout-session-23",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-LON-023-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-2",
+        "eventId": "MEM-HOLDOUT-LON-023-N2",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-2",
+        "content": "本轮临时对话噪声 2",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-3",
+        "eventId": "MEM-HOLDOUT-LON-023-N3",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-3",
+        "content": "本轮临时对话噪声 3",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-4",
+        "eventId": "MEM-HOLDOUT-LON-023-N4",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-4",
+        "content": "本轮临时对话噪声 4",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-5",
+        "eventId": "MEM-HOLDOUT-LON-023-N5",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-5",
+        "content": "本轮临时对话噪声 5",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-6",
+        "eventId": "MEM-HOLDOUT-LON-023-N6",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-6",
+        "content": "本轮临时对话噪声 6",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-7",
+        "eventId": "MEM-HOLDOUT-LON-023-N7",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-7",
+        "content": "本轮临时对话噪声 7",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-8",
+        "eventId": "MEM-HOLDOUT-LON-023-N8",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-8",
+        "content": "本轮临时对话噪声 8",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-9",
+        "eventId": "MEM-HOLDOUT-LON-023-N9",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-9",
+        "content": "本轮临时对话噪声 9",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-10",
+        "eventId": "MEM-HOLDOUT-LON-023-N10",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-10",
+        "content": "本轮临时对话噪声 10",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-11",
+        "eventId": "MEM-HOLDOUT-LON-023-N11",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-11",
+        "content": "本轮临时对话噪声 11",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-12",
+        "eventId": "MEM-HOLDOUT-LON-023-N12",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-12",
+        "content": "本轮临时对话噪声 12",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-13",
+        "eventId": "MEM-HOLDOUT-LON-023-N13",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-13",
+        "content": "本轮临时对话噪声 13",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-14",
+        "eventId": "MEM-HOLDOUT-LON-023-N14",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-14",
+        "content": "本轮临时对话噪声 14",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-15",
+        "eventId": "MEM-HOLDOUT-LON-023-N15",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-15",
+        "content": "本轮临时对话噪声 15",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-16",
+        "eventId": "MEM-HOLDOUT-LON-023-N16",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-16",
+        "content": "本轮临时对话噪声 16",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-17",
+        "eventId": "MEM-HOLDOUT-LON-023-N17",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-17",
+        "content": "本轮临时对话噪声 17",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-18",
+        "eventId": "MEM-HOLDOUT-LON-023-N18",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-18",
+        "content": "本轮临时对话噪声 18",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-19",
+        "eventId": "MEM-HOLDOUT-LON-023-N19",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-19",
+        "content": "本轮临时对话噪声 19",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "noise-20",
+        "eventId": "MEM-HOLDOUT-LON-023-N20",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-20",
+        "content": "本轮临时对话噪声 20",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-b"
+      },
+      {
+        "alias": "long-history-gold",
+        "eventId": "MEM-HOLDOUT-LON-023-E1",
+        "operation": "UPSERT",
+        "memoryType": "FACT",
+        "slotKey": "long_history-3",
+        "content": "用户关注 DJI Air 3 航拍无人机",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-b"
+      }
+    ],
+    "query": {
+      "text": "航拍设备关注点",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "long-history-gold"
+    ],
+    "goldMemoryAliases": [
+      "long-history-gold"
+    ],
+    "forbiddenMemoryAliases": [
+      "noise-1",
+      "noise-2",
+      "noise-3",
+      "noise-4",
+      "noise-5",
+      "noise-6",
+      "noise-7",
+      "noise-8",
+      "noise-9",
+      "noise-10",
+      "noise-11",
+      "noise-12",
+      "noise-13",
+      "noise-14",
+      "noise-15",
+      "noise-16",
+      "noise-17",
+      "noise-18",
+      "noise-19",
+      "noise-20"
+    ],
+    "expectedActiveValues": {
+      "long_history-3": "用户关注 DJI Air 3 航拍无人机"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "long-history-gold"
+      ],
+      "forbiddenAliases": [
+        "noise-1",
+        "noise-2",
+        "noise-3",
+        "noise-4",
+        "noise-5",
+        "noise-6",
+        "noise-7",
+        "noise-8",
+        "noise-9",
+        "noise-10",
+        "noise-11",
+        "noise-12",
+        "noise-13",
+        "noise-14",
+        "noise-15",
+        "noise-16",
+        "noise-17",
+        "noise-18",
+        "noise-19",
+        "noise-20"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  },
+  {
+    "caseId": "MEM-HOLDOUT-LON-024",
+    "split": "HOLDOUT",
+    "category": "long_history",
+    "requirementIds": [
+      "MEM-FR-006",
+      "MEM-AC-006"
+    ],
+    "userAlias": "user-a",
+    "sessionAlias": "holdout-session-24",
+    "layers": [
+      "store",
+      "recall",
+      "consolidation",
+      "context",
+      "graph"
+    ],
+    "events": [
+      {
+        "alias": "noise-1",
+        "eventId": "MEM-HOLDOUT-LON-024-N1",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-1",
+        "content": "本轮临时对话噪声 1",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-2",
+        "eventId": "MEM-HOLDOUT-LON-024-N2",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-2",
+        "content": "本轮临时对话噪声 2",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-3",
+        "eventId": "MEM-HOLDOUT-LON-024-N3",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-3",
+        "content": "本轮临时对话噪声 3",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-4",
+        "eventId": "MEM-HOLDOUT-LON-024-N4",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-4",
+        "content": "本轮临时对话噪声 4",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-5",
+        "eventId": "MEM-HOLDOUT-LON-024-N5",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-5",
+        "content": "本轮临时对话噪声 5",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-6",
+        "eventId": "MEM-HOLDOUT-LON-024-N6",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-6",
+        "content": "本轮临时对话噪声 6",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-7",
+        "eventId": "MEM-HOLDOUT-LON-024-N7",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-7",
+        "content": "本轮临时对话噪声 7",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-8",
+        "eventId": "MEM-HOLDOUT-LON-024-N8",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-8",
+        "content": "本轮临时对话噪声 8",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-9",
+        "eventId": "MEM-HOLDOUT-LON-024-N9",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-9",
+        "content": "本轮临时对话噪声 9",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-10",
+        "eventId": "MEM-HOLDOUT-LON-024-N10",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-10",
+        "content": "本轮临时对话噪声 10",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-11",
+        "eventId": "MEM-HOLDOUT-LON-024-N11",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-11",
+        "content": "本轮临时对话噪声 11",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-12",
+        "eventId": "MEM-HOLDOUT-LON-024-N12",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-12",
+        "content": "本轮临时对话噪声 12",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-13",
+        "eventId": "MEM-HOLDOUT-LON-024-N13",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-13",
+        "content": "本轮临时对话噪声 13",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-14",
+        "eventId": "MEM-HOLDOUT-LON-024-N14",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-14",
+        "content": "本轮临时对话噪声 14",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-15",
+        "eventId": "MEM-HOLDOUT-LON-024-N15",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-15",
+        "content": "本轮临时对话噪声 15",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-16",
+        "eventId": "MEM-HOLDOUT-LON-024-N16",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-16",
+        "content": "本轮临时对话噪声 16",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-17",
+        "eventId": "MEM-HOLDOUT-LON-024-N17",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-17",
+        "content": "本轮临时对话噪声 17",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-18",
+        "eventId": "MEM-HOLDOUT-LON-024-N18",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-18",
+        "content": "本轮临时对话噪声 18",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-19",
+        "eventId": "MEM-HOLDOUT-LON-024-N19",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-19",
+        "content": "本轮临时对话噪声 19",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "noise-20",
+        "eventId": "MEM-HOLDOUT-LON-024-N20",
+        "operation": "NO_STORE",
+        "memoryType": "FACT",
+        "slotKey": "noise-20",
+        "content": "本轮临时对话噪声 20",
+        "importance": 0.1,
+        "shouldStore": false,
+        "ownerAlias": "user-a"
+      },
+      {
+        "alias": "long-history-gold",
+        "eventId": "MEM-HOLDOUT-LON-024-E1",
+        "operation": "UPSERT",
+        "memoryType": "PREFERENCE",
+        "slotKey": "long_history-4",
+        "content": "用户偏好 Garmin Forerunner 265 运动手表",
+        "importance": 0.8,
+        "shouldStore": true,
+        "ownerAlias": "user-a"
+      }
+    ],
+    "query": {
+      "text": "运动手表偏好",
+      "topK": 5,
+      "threshold": 0.2
+    },
+    "allowedStoreAliases": [
+      "long-history-gold"
+    ],
+    "goldMemoryAliases": [
+      "long-history-gold"
+    ],
+    "forbiddenMemoryAliases": [
+      "noise-1",
+      "noise-2",
+      "noise-3",
+      "noise-4",
+      "noise-5",
+      "noise-6",
+      "noise-7",
+      "noise-8",
+      "noise-9",
+      "noise-10",
+      "noise-11",
+      "noise-12",
+      "noise-13",
+      "noise-14",
+      "noise-15",
+      "noise-16",
+      "noise-17",
+      "noise-18",
+      "noise-19",
+      "noise-20"
+    ],
+    "expectedActiveValues": {
+      "long_history-4": "用户偏好 Garmin Forerunner 265 运动手表"
+    },
+    "context": {
+      "currentInstruction": "仅使用与本轮问题相关且属于当前用户的有效记忆",
+      "usefulAliases": [
+        "long-history-gold"
+      ],
+      "forbiddenAliases": [
+        "noise-1",
+        "noise-2",
+        "noise-3",
+        "noise-4",
+        "noise-5",
+        "noise-6",
+        "noise-7",
+        "noise-8",
+        "noise-9",
+        "noise-10",
+        "noise-11",
+        "noise-12",
+        "noise-13",
+        "noise-14",
+        "noise-15",
+        "noise-16",
+        "noise-17",
+        "noise-18",
+        "noise-19",
+        "noise-20"
+      ]
+    },
+    "expectedEdges": [],
+    "forbiddenEdges": []
+  }
+]

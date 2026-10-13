@@ -10,6 +10,7 @@ import org.example.online_used_marketplace.modules.ai.agent.planner.AgentReplanD
 import org.example.online_used_marketplace.modules.ai.agent.planner.HybridAgentPlanner;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContext;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContextBuilder;
+import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentExecutionIdentity;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.GraphExecutionObserver;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.GraphExecutionOptions;
 import org.example.online_used_marketplace.modules.ai.dto.GraphAgentRequestDTO;
@@ -55,6 +56,8 @@ class GraphReactAgentReplanTest {
         context.setSessionId("graph-replan");
         when(contextBuilder.build(anyString(), anyString(), anyString(), anyString(), anyString(), anyInt()))
                 .thenReturn(context);
+        when(contextBuilder.build(anyString(), anyString(), anyString(), anyString(), anyString(), anyInt(), any()))
+                .thenReturn(context);
 
         AgentPlan initial = new AgentPlan();
         initial.setPlannerType("RULE_FAST_PATH");
@@ -95,7 +98,8 @@ class GraphReactAgentReplanTest {
         request.setMaxSteps(5);
 
         GraphAgentResponseVO response = service.run(
-                request, new GraphExecutionOptions(observer, Map.of())
+                request, new GraphExecutionOptions(observer, Map.of(),
+                        new AgentExecutionIdentity("1", "INTERNAL"))
         );
 
         assertThat(response.getGraph()).extracting(AgentGraphNodeVO::getNodeId)

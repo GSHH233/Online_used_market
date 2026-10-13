@@ -15,6 +15,9 @@ public class L3SessionSummaryVO {
 
     private String sessionId;
 
+    /** Database CAS revision for the current session summary. */
+    private Long revision = 0L;
+
     private String currentGoal;
 
     private String productName;

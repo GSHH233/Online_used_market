@@ -28,6 +28,15 @@ public enum OrderStatus {
         return this == FINISHED || this == CANCELLED;
     }
 
+    public boolean canTransitionTo(OrderStatus target) {
+        return switch (this) {
+            case PENDING_PAY -> target == PAID || target == CANCELLED;
+            case PAID -> target == DELIVERED;
+            case DELIVERED -> target == FINISHED;
+            case FINISHED, CANCELLED -> false;
+        };
+    }
+
     public static OrderStatus fromCode(Integer code) {
         if (code == null) {
             return null;

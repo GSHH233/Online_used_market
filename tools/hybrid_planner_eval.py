@@ -11,7 +11,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import Any
@@ -29,6 +29,8 @@ class CaseResult:
     tools: list[str]
     denied_tools: list[str]
     details: list[str]
+    require_live_llm: bool = False
+    require_replan: bool = False
 
 
 def load_json(path: Path) -> Any:
@@ -139,6 +141,10 @@ def evaluate(base_url: str, case: dict[str, Any], timeout_sec: float, token: str
         missing = [tool for tool in expected if tool not in tools]
         if missing:
             details.append("missingTools:" + ",".join(missing))
+        if case.get("allowOnlyExpectedTools"):
+            unexpected = [tool for tool in tools if tool not in expected]
+            if unexpected:
+                details.append("unexpectedTools:" + ",".join(unexpected))
         expected_denied = list_of_strings(case.get("expectedDeniedTools"))
         missing_denied = [tool for tool in expected_denied if tool not in denied]
         if missing_denied:
@@ -155,12 +161,18 @@ def evaluate(base_url: str, case: dict[str, Any], timeout_sec: float, token: str
         if expected_planner and planner != expected_planner:
             details.append(f"planner:{planner}!={expected_planner}")
         max_rounds = int(case.get("maxReplanRounds", 2))
+        min_rounds = int(case.get("minReplanRounds", 0))
+        if replan_rounds < min_rounds:
+            details.append(f"replanRounds:{replan_rounds}<{min_rounds}")
         if replan_rounds > max_rounds:
             details.append(f"replanRounds:{replan_rounds}>{max_rounds}")
         if case.get("requireGraph"):
             details.extend(graph_errors(data.get("graph")))
 
-        return CaseResult(case_id, not details, latency_ms, planner, replan_rounds, tools, denied, details)
+        return CaseResult(
+            case_id, not details, latency_ms, planner, replan_rounds, tools, denied, details,
+            bool(case.get("requireLiveLlm")), bool(case.get("requireReplan")),
+        )
     except (urllib.error.URLError, TimeoutError, ValueError, RuntimeError, KeyError) as error:
         details.append("error:" + str(error))
         return CaseResult(case_id, False, latency_ms, "", 0, [], [], details)
@@ -174,7 +186,18 @@ def percentile(values: list[float], percent: int) -> float:
     return ordered[index]
 
 
-def report(results: list[CaseResult]) -> str:
+def hard_gate_failures(results: list[CaseResult]) -> list[str]:
+    failures: list[str] = []
+    llm_cases = [result for result in results if result.require_live_llm]
+    if not llm_cases or not any(result.ok and result.planner == "LLM_STRUCTURED" for result in llm_cases):
+        failures.append("no successful live LLM_STRUCTURED case")
+    replan_cases = [result for result in results if result.require_replan]
+    if not replan_cases or not any(result.ok and 0 < result.replan_rounds <= 2 for result in replan_cases):
+        failures.append("no successful bounded replan case")
+    return failures
+
+
+def report(results: list[CaseResult], hard_failures: list[str]) -> str:
     passed = sum(1 for result in results if result.ok)
     latencies = [result.latency_ms for result in results]
     lines = [
@@ -186,6 +209,9 @@ def report(results: list[CaseResult]) -> str:
         f"- Pass rate: {passed / len(results):.2%}" if results else "- Pass rate: 0.00%",
         f"- P50 latency ms: {statistics.median(latencies) if latencies else 0:.1f}",
         f"- P95 latency ms: {percentile(latencies, 95):.1f}",
+        f"- Live LLM structured cases: {sum(1 for result in results if result.planner == 'LLM_STRUCTURED')}",
+        f"- Cases with Replan: {sum(1 for result in results if result.replan_rounds > 0)}",
+        f"- Hard gate failures: {hard_failures}",
         "",
         "| Case | OK | Planner | Replan rounds | Tools | Denied | Latency ms | Details |",
         "|---|---:|---|---:|---|---|---:|---|",
@@ -215,6 +241,7 @@ def main() -> int:
         print("Dataset must be a JSON array.", file=sys.stderr)
         return 2
     results = [evaluate(args.base_url, case, args.timeout_sec, args.bearer_token) for case in cases]
+    hard_failures = hard_gate_failures(results)
     for result in results:
         print(
             f"[{'OK' if result.ok else 'RISK'}] {result.case_id} "
@@ -223,9 +250,19 @@ def main() -> int:
         )
     output = Path(args.out)
     output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(report(results), encoding="utf-8")
+    output.write_text(report(results, hard_failures), encoding="utf-8")
+    json_output = output.with_suffix(".json")
+    json_output.write_text(json.dumps({
+        "requirementId": "QUALITY-AC-001",
+        "generatedAt": datetime.now().astimezone().isoformat(timespec="seconds"),
+        "caseCount": len(results),
+        "passedCount": sum(1 for result in results if result.ok),
+        "hardGateFailures": hard_failures,
+        "results": [asdict(result) for result in results],
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"written to {output}")
-    return 0 if all(result.ok for result in results) else 1
+    print(f"written to {json_output}")
+    return 0 if all(result.ok for result in results) and not hard_failures else 1
 
 
 if __name__ == "__main__":

@@ -2,10 +2,13 @@ package org.example.online_used_marketplace.modules.ai.agent.tools;
 
 import lombok.RequiredArgsConstructor;
 import org.example.online_used_marketplace.modules.ai.agent.AgentTool;
+import org.example.online_used_marketplace.common.BusinessException;
+import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.service.UserProfileService;
 import org.example.online_used_marketplace.modules.ai.vo.ToolQueryResultVO;
 import org.example.online_used_marketplace.modules.ai.vo.UserProfileVO;
 import org.springframework.stereotype.Component;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +37,10 @@ public class ProfileAgentTool implements AgentTool {
     @Override
     public ToolQueryResultVO execute(Map<String, Object> input) {
         long start = System.currentTimeMillis();
-        String userId = String.valueOf(input.getOrDefault("userId", "anonymous"));
+        String userId = input == null || input.get("userId") == null ? "" : String.valueOf(input.get("userId"));
+        if (!StringUtils.hasText(userId) || "anonymous".equalsIgnoreCase(userId)) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "Profile 查询缺少认证身份");
+        }
         String sessionId = String.valueOf(input.getOrDefault("sessionId", ""));
         UserProfileVO profile = userProfileService.buildProfile(userId, sessionId);
         ToolQueryResultVO vo = new ToolQueryResultVO();

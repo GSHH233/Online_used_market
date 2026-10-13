@@ -12,6 +12,7 @@ import org.example.online_used_marketplace.modules.ai.agent.planner.AgentReplanD
 import org.example.online_used_marketplace.modules.ai.agent.planner.HybridAgentPlanner;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContext;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentRuntimeContextBuilder;
+import org.example.online_used_marketplace.modules.ai.agent.runtime.AgentExecutionIdentity;
 import org.example.online_used_marketplace.modules.ai.agent.runtime.GraphExecutionOptions;
 import org.example.online_used_marketplace.modules.ai.dto.GraphAgentRequestDTO;
 import org.example.online_used_marketplace.modules.ai.agent.harness.ToolExecutionHarness;
@@ -76,7 +77,9 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
         validate(request);
         long start = System.currentTimeMillis();
         String question = request.getQuestion().trim();
-        String mode = normalizeMode(request.getMode());
+        AgentExecutionIdentity identity = executionOptions.getIdentity() == null
+                ? AgentExecutionIdentity.current() : executionOptions.getIdentity();
+        String mode = identity.effectiveMode(normalizeMode(request.getMode()));
         String traceId = StringUtils.hasText(request.getTraceId()) ? request.getTraceId().trim() : UUID.randomUUID().toString();
         int maxSteps = request.getMaxSteps() == null ? DEFAULT_MAX_STEPS : Math.min(Math.max(request.getMaxSteps(), 1), 8);
 
@@ -85,7 +88,9 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
         response.setQuestion(question);
         response.setMode(mode);
 
-        AgentRuntimeContext runtimeContext = runtimeContextBuilder.build("graph", request.getSessionId(), traceId, mode, question, maxSteps);
+        AgentRuntimeContext runtimeContext = executionOptions.getIdentity() == null
+                ? runtimeContextBuilder.build("graph", request.getSessionId(), traceId, mode, question, maxSteps)
+                : runtimeContextBuilder.build("graph", request.getSessionId(), traceId, mode, question, maxSteps, identity);
         AgentPlan generatedPlan = hybridAgentPlanner.plan(question, runtimeContext, traceId, mode, maxSteps);
         List<AgentGraphNodeVO> graph = planGraph(generatedPlan.getSteps(), "");
         String finalDependency = "observation_merge";
@@ -158,7 +163,7 @@ public class GraphReactAgentServiceImpl implements GraphReactAgentService {
                 + ",graphMemory=" + runtimeContext.getGraphMemoryLines().size()
                 + ",elapsedMs=" + response.getElapsedMs());
         if (!shouldUseFastOperationalAnswer(question, response.getObservations())) {
-            sessionSummaryService.refreshSummaryIfNeeded(request.getSessionId(), question, response.getAnswer());
+            sessionSummaryService.refreshSummaryIfNeeded(identity.scope(request.getSessionId()), question, response.getAnswer());
         }
         return response;
     }

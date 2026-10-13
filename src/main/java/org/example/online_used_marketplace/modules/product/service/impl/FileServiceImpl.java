@@ -6,6 +6,7 @@ import io.minio.MinioClient;
 import io.minio.PutObjectArgs;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.tika.Tika;
 import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.config.MinioProperties;
@@ -13,7 +14,11 @@ import org.example.online_used_marketplace.modules.product.service.FileService;
 import org.example.online_used_marketplace.modules.product.vo.FileUploadVO;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -27,50 +32,58 @@ import java.util.UUID;
 @RequiredArgsConstructor
 @Slf4j
 public class FileServiceImpl implements FileService {
+    private static final int MAX_IMAGE_BYTES = 5 * 1024 * 1024;
+    private static final Map<String, String> IMAGE_TYPES = Map.of(
+            ".jpg", "image/jpeg", ".jpeg", "image/jpeg", ".png", "image/png",
+            ".gif", "image/gif", ".webp", "image/webp", ".bmp", "image/bmp");
     private final MinioClient minioClient;
     private final MinioProperties minioProperties;
+    private volatile boolean bucketInitialized;
 
     @Override
     public FileUploadVO upload(MultipartFile file) {
-        if (file==null||file.isEmpty()){
-            throw new BusinessException(ResultCode.INTERNAL_ERROR,"上传文件失败");
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "上传图片不能为空");
         }
         String filename = file.getOriginalFilename();
-        String contentType = file.getContentType();
-        if (contentType==null||contentType.isBlank()){
-            contentType="application/octet-stream";
+        if (filename == null || filename.isBlank()) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "文件名不能为空");
         }
-        String ext = "";
-        if (filename==null){
-            throw new BusinessException(ResultCode.INTERNAL_ERROR,"文件名不能为空");
+        int dot = filename.lastIndexOf('.');
+        String ext = dot > 0 ? filename.substring(dot).toLowerCase(Locale.ROOT) : "";
+        String expectedType = IMAGE_TYPES.get(ext);
+        if (expectedType == null) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "仅支持JPG、JPEG、PNG、GIF、WEBP、BMP图片");
         }
+        if (file.getSize() > MAX_IMAGE_BYTES) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "图片大小不能超过5MB");
+        }
+
+        byte[] content;
+        try (InputStream input = file.getInputStream()) {
+            // Bound the actual bytes, not just the multipart-reported size.
+            content = input.readNBytes(MAX_IMAGE_BYTES + 1);
+        } catch (IOException e) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "无法读取上传图片");
+        }
+        if (content.length == 0 || content.length > MAX_IMAGE_BYTES) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "图片不能为空且大小不能超过5MB");
+        }
+        // Do not pass the untrusted filename or Content-Type to Tika.
+        String contentType = new Tika().detect(content);
+        if (!expectedType.equals(contentType)) {
+            throw new BusinessException(ResultCode.BAD_REQUEST, "图片实际类型与扩展名不匹配");
+        }
+
         String bucket = minioProperties.getBucketName();
-
-        try {
-            if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())){
-                minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
-            }
-        } catch (Exception e) {
-            log.error("MinIO bucket检查/创建失败, bucket={}, endpoint={}, reason={}",
-                    bucket, minioProperties.getEndpoint(), e.getMessage(), e);
-            throw new BusinessException(ResultCode.INTERNAL_ERROR, "bucket检查/创建失败");
-        }
-        int i = filename.lastIndexOf(".");
-        if (i>=0&&i<filename.length()-1){
-            ext=filename.substring(i);
-        }
-        if (i==0){
-            ext="";
-        }
-
-        String objectName;
-        UUID uuid = UUID.randomUUID();
-        objectName= String.valueOf(uuid)+ext;
-        try(InputStream inputStream = file.getInputStream()) {
-            minioClient.putObject(PutObjectArgs.builder().object(objectName).stream(inputStream, file.getSize(), -1).bucket(bucket).contentType(contentType).build());
+        ensureBucket(bucket);
+        String objectName = UUID.randomUUID() + ext;
+        try (InputStream inputStream = new ByteArrayInputStream(content)) {
+            minioClient.putObject(PutObjectArgs.builder().object(objectName)
+                    .stream(inputStream, content.length, -1).bucket(bucket).contentType(contentType).build());
         } catch (Exception e) {
             log.error("MinIO文件上传失败, bucket={}, objectName={}, size={}, contentType={}, reason={}",
-                    bucket, objectName, file.getSize(), contentType, e.getMessage(), e);
+                    bucket, objectName, content.length, contentType, e.getMessage(), e);
             throw new BusinessException(ResultCode.INTERNAL_ERROR, "文件上传失败");
         }
         FileUploadVO vo=new FileUploadVO();
@@ -78,5 +91,26 @@ public class FileServiceImpl implements FileService {
         vo.setUrl(url);
         vo.setObjectName(objectName);
         return vo;
+    }
+
+    private void ensureBucket(String bucket) {
+        if (bucketInitialized) {
+            return;
+        }
+        synchronized (this) {
+            if (bucketInitialized) {
+                return;
+            }
+            try {
+                if (!minioClient.bucketExists(BucketExistsArgs.builder().bucket(bucket).build())) {
+                    minioClient.makeBucket(MakeBucketArgs.builder().bucket(bucket).build());
+                }
+                bucketInitialized = true;
+            } catch (Exception e) {
+                log.error("MinIO bucket检查/创建失败, bucket={}, endpoint={}",
+                        bucket, minioProperties.getEndpoint(), e);
+                throw new BusinessException(ResultCode.INTERNAL_ERROR, "bucket检查/创建失败");
+            }
+        }
     }
 }

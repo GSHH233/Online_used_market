@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -44,6 +45,7 @@ public class ControlledOperationController {
     }
 
     @PostMapping("/{operationId}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<ControlledOperationVO> approve(@PathVariable Long operationId,
                                                   @RequestBody(required = false) AiopsApprovalRequestDTO request) {
         Long operatorId = ToolAccessGuard.requireAdminUserId("controlled_operation_approve");
@@ -51,6 +53,7 @@ public class ControlledOperationController {
     }
 
     @PostMapping("/{operationId}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<ControlledOperationVO> reject(@PathVariable Long operationId,
                                                  @RequestBody(required = false) AiopsApprovalRequestDTO request) {
         Long operatorId = ToolAccessGuard.requireAdminUserId("controlled_operation_reject");
@@ -58,6 +61,7 @@ public class ControlledOperationController {
     }
 
     @PostMapping("/{operationId}/execute")
+    @PreAuthorize("hasRole('ADMIN')")
     public Result<ControlledOperationVO> execute(@PathVariable Long operationId) {
         ToolAccessGuard.requireAdminEndpoint("controlled_operation_execute");
         return Result.success(controlledOperationService.execute(operationId));

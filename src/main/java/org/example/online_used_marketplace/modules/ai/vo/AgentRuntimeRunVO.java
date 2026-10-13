@@ -9,6 +9,8 @@ import java.util.List;
 public class AgentRuntimeRunVO {
     private String runId;
     private String traceId;
+    private String ownerUserId;
+    private String ownerRole;
     private String strategy;
     private String status;
     private String question;

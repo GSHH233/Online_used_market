@@ -19,6 +19,7 @@ import org.example.online_used_marketplace.modules.ai.agent.harness.ToolExecutio
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
 import org.example.online_used_marketplace.modules.ai.service.ReactAgentService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
 import org.example.online_used_marketplace.modules.ai.service.TokenGovernanceService;
 import org.example.online_used_marketplace.modules.ai.token.TokenBudgetResult;
 import org.example.online_used_marketplace.modules.ai.token.TokenGenerationRequest;
@@ -138,7 +139,7 @@ public class ReactAgentServiceImpl implements ReactAgentService {
                 + ",graph=" + runtimeContext.getGraphMemoryLines().size()
                 + ",tools=" + executedPlan.stream().map(AgentAction::getTool).toList());
         addTrace(response, "final", null, "SUCCESS", "汇总 Observation 生成回答", "final_answer", "回答已生成", 0L, response.getSources().stream().map(RagSourceVO::getDocId).filter(java.util.Objects::nonNull).toList(), Map.of());
-        sessionSummaryService.refreshSummaryIfNeeded(request.getSessionId(), question, response.getAnswer());
+        sessionSummaryService.refreshSummaryIfNeeded(MemoryScope.current(request.getSessionId()), question, response.getAnswer());
         return response;
     }
 

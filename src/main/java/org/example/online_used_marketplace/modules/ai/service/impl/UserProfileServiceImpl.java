@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.LinkedHashMap;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,19 +27,19 @@ public class UserProfileServiceImpl implements UserProfileService {
     @Override
     public UserProfileVO buildProfile(String userId, String sessionId) {
         UserProfileVO profile = new UserProfileVO();
-        profile.setUserId(StringUtils.hasText(userId) ? userId.trim() : "anonymous");
+        profile.setUserId(StringUtils.hasText(userId) ? userId.trim() : "");
         profile.setSessionId(StringUtils.hasText(sessionId) ? sessionId.trim() : "");
+        if (!StringUtils.hasText(profile.getUserId())) {
+            return profile;
+        }
 
-        List<L2MemoryHitVO> preferenceRows = l2MemoryService.retrieve(
-                        profile.getUserId(),
-                        profile.getSessionId(),
-                        "偏好 品牌 预算 价格 成色 品类 交易 风险 文案",
-                        30,
-                        0.05D
-                )
-                .stream()
-                .filter(one -> "PREFERENCE".equalsIgnoreCase(one.getMemoryType()))
-                .toList();
+        List<L2MemoryHitVO> currentRows = l2MemoryService.listActiveSlotMemories(
+                profile.getUserId(), "PREFERENCE");
+        List<L2MemoryHitVO> preferenceRows = new ArrayList<>(currentRows);
+        HashSet<Long> currentIds = new HashSet<>(currentRows.stream().map(L2MemoryHitVO::getId).toList());
+        l2MemoryService.listActiveMemoriesByType(profile.getUserId(), "PREFERENCE", 200).stream()
+                .filter(one -> !currentIds.contains(one.getId()))
+                .forEach(preferenceRows::add);
 
         Map<String, String> raw = new LinkedHashMap<>();
         for (L2MemoryHitVO row : preferenceRows) {

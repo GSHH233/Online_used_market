@@ -8,6 +8,8 @@ import org.example.online_used_marketplace.common.BusinessException;
 import org.example.online_used_marketplace.common.ResultCode;
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterDTO;
 import org.example.online_used_marketplace.modules.ai.event.RagChatOutcomeEvent;
+import org.example.online_used_marketplace.modules.ai.memory.L2MemoryWriteCommand;
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
 import org.example.online_used_marketplace.modules.ai.service.ChatGenerationService;
 import org.example.online_used_marketplace.modules.ai.service.ConversationMemoryService;
 import org.example.online_used_marketplace.modules.ai.service.KnowledgeSearchService;
@@ -42,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -85,17 +88,20 @@ public class RagChatServiceImpl implements RagChatService {
     );
 
     @Override
-    public WsChatDoneVO chat(String sessionId, String question, String traceId, Integer topK, KnowledgeSearchFilterDTO filter) {
-        return chatInternal(sessionId, question, traceId, topK, filter, false);
+    public WsChatDoneVO chat(MemoryScope scope, String question, String traceId, Integer topK, KnowledgeSearchFilterDTO filter) {
+        if (scope == null) {
+            throw new BusinessException(ResultCode.UNAUTHORIZED, "私有记忆需要已认证用户");
+        }
+        return chatInternal(scope, scope.sessionId(), question, traceId, topK, filter, false);
     }
 
     @Override
     public WsChatDoneVO chatForEvaluation(String sessionId, String question, String traceId,
                                           Integer topK, KnowledgeSearchFilterDTO filter) {
-        return chatInternal(sessionId, question, traceId, topK, filter, true);
+        return chatInternal(null, sessionId, question, traceId, topK, filter, true);
     }
 
-    private WsChatDoneVO chatInternal(String sessionId, String question, String traceId,
+    private WsChatDoneVO chatInternal(MemoryScope scope, String sessionId, String question, String traceId,
                                       Integer topK, KnowledgeSearchFilterDTO filter,
                                       boolean evaluationMode) {
         long requestStartedNanos = System.nanoTime();
@@ -105,7 +111,7 @@ public class RagChatServiceImpl implements RagChatService {
 
         String normalizedQuestion = question.trim();
         Integer normalizedTopK = ((topK == null || topK <= 0) ? 5 : topK);
-        String memoryUserId = StringUtils.hasText(sessionId) ? sessionId : "anonymous";
+        String memoryUserId = evaluationMode ? "eval" : scope.userId();
 
         Map<String, String> explicitPreferences = evaluationMode
                 ? Collections.emptyMap()
@@ -117,10 +123,10 @@ public class RagChatServiceImpl implements RagChatService {
 
         String sessionSummary = evaluationMode ? "" : shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
                 ? "（本轮用户已切换当前商品，旧L3摘要不注入）"
-                : sessionSummaryService.getSummary(sessionId);
+                : sessionSummaryService.getSummary(scope);
         Map<String, String> l3AutofillParams = evaluationMode || shouldIgnoreL3ForCurrentTurn(normalizedQuestion)
                 ? Collections.emptyMap()
-                : sessionSummaryService.getAutofillParams(sessionId);
+                : sessionSummaryService.getAutofillParams(scope);
         UserProfileVO historicalProfile = evaluationMode
                 ? new UserProfileVO()
                 : userProfileService.buildProfile(memoryUserId, sessionId);
@@ -132,7 +138,7 @@ public class RagChatServiceImpl implements RagChatService {
 
         Map<String, String> extractedPreferences = mergePreferences(autofillResult.getMergedParams(), preferenceCandidates);
         if (!evaluationMode) {
-            persistPreferencesToL2(memoryUserId, sessionId, preferenceCandidates);
+            persistPreferencesToL2(memoryUserId, sessionId, preferenceCandidates, traceId);
         }
         UserProfileVO effectiveProfile = evaluationMode
                 ? historicalProfile
@@ -146,7 +152,7 @@ public class RagChatServiceImpl implements RagChatService {
 
         List<String> recentContext = evaluationMode
                 ? Collections.emptyList()
-                : conversationMemoryService.getRecentMessages(sessionId, 10);
+                : conversationMemoryService.getRecentMessages(scope, 10);
         List<String> l2MemoryContext = evaluationMode
                 ? Collections.emptyList()
                 : l2MemoryService.retrieve(memoryUserId, sessionId, normalizedQuestion, 3, 0.4D)
@@ -367,8 +373,9 @@ public class RagChatServiceImpl implements RagChatService {
                                     long requestStartedNanos) {
         response.setEvaluationMode(evaluationMode);
         if (!evaluationMode && persistMemory) {
-            conversationMemoryService.appendTurn(sessionId, question, response.getAnswer());
-            sessionSummaryService.refreshSummaryIfNeeded(sessionId, question, response.getAnswer());
+            MemoryScope scope = new MemoryScope(memoryUserId, sessionId);
+            conversationMemoryService.appendTurn(scope, question, response.getAnswer());
+            sessionSummaryService.refreshSummaryIfNeeded(scope, question, response.getAnswer());
             l2MemoryService.saveMemory(memoryUserId, sessionId, "FACT",
                     question + " -> " + response.getAnswer(), 0.3D);
         }
@@ -1301,24 +1308,35 @@ public class RagChatServiceImpl implements RagChatService {
         return text;
     }
 
-    private void persistPreferencesToL2(String userId, String sessionId, Map<String, String> prefs) {
+    private void persistPreferencesToL2(String userId, String sessionId, Map<String, String> prefs, String traceId) {
         if (prefs == null || prefs.isEmpty()) {
             return;
         }
         for (Map.Entry<String, String> entry : prefs.entrySet()) {
+            String metadataJson = "{}";
             try {
                 Map<String, String> metadata = new HashMap<>();
                 metadata.put("schema", "user_preference_v1");
                 metadata.put("key", entry.getKey());
                 metadata.put("value", entry.getValue());
                 metadata.put("source", "rule_llm_merge");
-                String metadataJson = objectMapper.writeValueAsString(metadata);
-                String content = "PREFERENCE|" + entry.getKey() + "=" + entry.getValue();
-                l2MemoryService.saveMemory(userId, sessionId, "PREFERENCE", content, 0.3D, metadataJson);
+                metadataJson = objectMapper.writeValueAsString(metadata);
             } catch (Exception ex) {
                 log.warn("persistPreferencesToL2 metadata serialize failed: {}", ex.getMessage());
+            }
+            try {
                 String content = "PREFERENCE|" + entry.getKey() + "=" + entry.getValue();
-                l2MemoryService.saveMemory(userId, sessionId, "PREFERENCE", content, 0.3D);
+                String eventSeed = StringUtils.hasText(traceId) ? traceId.trim() : UUID.randomUUID().toString();
+                String sourceEventId = eventSeed.length() <= 128
+                        ? eventSeed
+                        : "rag-preference:" + UUID.nameUUIDFromBytes(eventSeed.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                l2MemoryService.upsertSlotMemory(new L2MemoryWriteCommand(
+                        userId, sessionId, "PREFERENCE", content, 0.3D, metadataJson,
+                        sourceEventId, "RULE_LLM_MERGE", "INFERRED",
+                        "USER", "USER", entry.getKey()));
+            } catch (Exception ex) {
+                log.warn("persistPreferencesToL2 lifecycle write failed, key={}, reason={}",
+                        entry.getKey(), ex.getMessage());
             }
         }
     }

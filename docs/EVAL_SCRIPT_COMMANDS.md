@@ -247,17 +247,9 @@ $env:EVAL_BEARER_TOKEN = $USER_TOKEN
 python tools/l1_memory_regression_ws.py
 ```
 
-## 11. 简历 / 指标摘要工具
+## 11. 个人材料归档
 
-这两个不是业务回归评测，按需执行：
-
-```powershell
-python tools/resume_metrics_summary.py
-```
-
-```powershell
-python tools/generate_optimized_resume.py
-```
+简历生成、简历指标摘要及面试学习材料已移至本机独立备份目录，未删除。它们不属于项目运行或业务评测依赖，不再提供仓库内执行命令。
 
 ## 12. 推荐回归顺序
 

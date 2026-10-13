@@ -133,6 +133,52 @@ class BuiltinSupervisorCollaborationEngineTest {
         engine.shutdown();
     }
 
+    @Test
+    void correlatedDatabaseSignalsProduceSupportedDiagnosis() {
+        List<AiopsSpecialistAgent> agents = List.of(
+                findingAgent(SpecialistType.METRICS, "LATENCY_HIGH"),
+                findingAgent(SpecialistType.LOG, "DB_TIMEOUT"),
+                findingAgent(SpecialistType.CHANGE, "DATABASE_CHANGE"));
+        BuiltinSupervisorCollaborationEngine engine = engine(agents, 500L, 3);
+
+        Diagnosis diagnosis = engine.investigate(context()).getDiagnosis();
+
+        assertEquals("database_change_regression", diagnosis.getRootCauseHypotheses().get(0).getHypothesisId());
+        assertEquals("SUPPORTED", diagnosis.getConclusionStatus());
+        assertTrue(diagnosis.getConflictingEvidenceIds().isEmpty());
+        engine.shutdown();
+    }
+
+    @Test
+    void conflictingMetricAndLogSignalsRemainProvisional() {
+        List<AiopsSpecialistAgent> agents = List.of(
+                findingAgent(SpecialistType.METRICS, "METRICS_NORMAL"),
+                findingAgent(SpecialistType.LOG, "DB_TIMEOUT"),
+                findingAgent(SpecialistType.CHANGE, "RECENT_CHANGE"));
+        BuiltinSupervisorCollaborationEngine engine = engine(agents, 500L, 3);
+
+        Diagnosis diagnosis = engine.investigate(context()).getDiagnosis();
+
+        assertEquals("evidence_conflict", diagnosis.getRootCauseHypotheses().get(0).getHypothesisId());
+        assertEquals("PROVISIONAL", diagnosis.getConclusionStatus());
+        assertFalse(diagnosis.getConflictingEvidenceIds().isEmpty());
+        assertFalse(diagnosis.getFollowUpQuestions().isEmpty());
+        engine.shutdown();
+    }
+
+    @Test
+    void singleMetricSignalRequestsIndependentEvidence() {
+        BuiltinSupervisorCollaborationEngine engine = engine(List.of(
+                findingAgent(SpecialistType.METRICS, "ERROR_RATE_HIGH")), 500L, 1);
+
+        Diagnosis diagnosis = engine.investigate(context()).getDiagnosis();
+
+        assertEquals("metric_signal_unconfirmed", diagnosis.getRootCauseHypotheses().get(0).getHypothesisId());
+        assertEquals("PROVISIONAL", diagnosis.getConclusionStatus());
+        assertFalse(diagnosis.getFollowUpQuestions().isEmpty());
+        engine.shutdown();
+    }
+
     private BuiltinSupervisorCollaborationEngine engine(List<AiopsSpecialistAgent> agents,
                                                         long timeoutMs,
                                                         int parallelism) {
@@ -184,6 +230,17 @@ class BuiltinSupervisorCollaborationEngineTest {
                 "observed",
                 Instant.now(),
                 Map.of("source", type.name()));
+    }
+
+    private AiopsSpecialistAgent findingAgent(SpecialistType type, String findingCode) {
+        return new TestAgent(type, () -> SpecialistResult.completed(type, List.of(Evidence.observed(
+                type.name().toLowerCase() + "-evidence",
+                type,
+                type.name().toLowerCase(),
+                "target",
+                findingCode,
+                Instant.now(),
+                Map.of("findingCode", findingCode)))));
     }
 
     private static final class TestAgent implements AiopsSpecialistAgent {

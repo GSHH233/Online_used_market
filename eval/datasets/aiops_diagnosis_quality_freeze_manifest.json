@@ -1,0 +1,27 @@
+{
+  "requirementId": "QUALITY-AC-002",
+  "frozenAt": "2026-09-21T15:56:00+08:00",
+  "development": {
+    "path": "eval/datasets/aiops_diagnosis_quality_development_dataset.json",
+    "caseCount": 24,
+    "sha256": "3831d61bbc8e7534cb41b5fb16136a6b9e676e6f6de073a448c38bb3788dcb97"
+  },
+  "holdout": {
+    "path": "eval/datasets/aiops_diagnosis_quality_holdout_dataset.json",
+    "caseCount": 12,
+    "sha256": "39bbee0db570e45b8bec3cd84a1cbca4375458927984efe7e4a72b23d47f8bb5",
+    "firstExposedAt": "2026-09-21T15:54:00+08:00"
+  },
+  "implementation": {
+    "path": "src/main/java/org/example/online_used_marketplace/modules/ai/aiops/collaboration/AiopsDiagnosisSupervisor.java",
+    "sha256": "cd25825f7d034f5314687503c3c11421d6432bbdcb444d04e0908248bf2ba919"
+  },
+  "measurement": {
+    "roundsPerMode": 3,
+    "order": "interleaved",
+    "parallelism": 3,
+    "supervisorMode": "DETERMINISTIC_STRUCTURED",
+    "modelId": "none",
+    "actualTokenUsage": 0
+  }
+}

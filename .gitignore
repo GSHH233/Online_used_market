@@ -20,6 +20,11 @@ __pycache__/
 *.py[cod]
 .venv*/
 .playwright-cli/
+.deepeval/
+tmp/
+
+# Machine-specific startup settings stay local; publish the example instead.
+src/main/resources/application-idea.yml
 
 ### STS ###
 .apt_generated

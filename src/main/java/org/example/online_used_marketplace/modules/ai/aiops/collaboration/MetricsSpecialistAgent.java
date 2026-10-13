@@ -53,6 +53,7 @@ public class MetricsSpecialistAgent implements AiopsSpecialistAgent {
             attributes.put("resultCount", result.getRows().size());
             attributes.put("total", result.getTotal());
             attributes.put("template", ServerSidePromQlTemplates.templateName(context));
+            attributes.put("findingCode", findingCode(context));
             Evidence evidence = Evidence.observed(
                     evidenceId,
                     type(),
@@ -72,5 +73,23 @@ public class MetricsSpecialistAgent implements AiopsSpecialistAgent {
         return ex.getMessage() == null || ex.getMessage().isBlank()
                 ? ex.getClass().getSimpleName()
                 : ex.getMessage();
+    }
+
+    private String findingCode(AlertInvestigationContext context) {
+        String alert = context == null || context.getAlertName() == null
+                ? "" : context.getAlertName().toLowerCase();
+        if (alert.contains("latency") || alert.contains("p95")) {
+            return "LATENCY_HIGH";
+        }
+        if (alert.contains("error") || alert.contains("5xx")) {
+            return "ERROR_RATE_HIGH";
+        }
+        if (alert.contains("down") || alert.contains("unavailable")) {
+            return "SERVICE_DOWN";
+        }
+        if (alert.contains("cpu") || alert.contains("memory") || alert.contains("oom")) {
+            return "RESOURCE_HIGH";
+        }
+        return "METRIC_ANOMALY";
     }
 }

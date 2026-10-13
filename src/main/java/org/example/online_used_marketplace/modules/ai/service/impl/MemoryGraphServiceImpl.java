@@ -9,6 +9,7 @@ import org.example.online_used_marketplace.modules.ai.service.MemoryGraphService
 import org.example.online_used_marketplace.modules.ai.vo.MemoryGraphEdgeVO;
 import org.example.online_used_marketplace.modules.ai.vo.MemoryGraphExtractResponseVO;
 import org.example.online_used_marketplace.modules.ai.vo.MemoryGraphNodeVO;
+import org.example.online_used_marketplace.modules.ai.vo.MemoryGraphCleanupVO;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -173,6 +174,14 @@ public class MemoryGraphServiceImpl implements MemoryGraphService {
             vo.setUpdatedTime(toLocalDateTime(rs.getTimestamp("updated_time")));
             return vo;
         }, args.toArray());
+    }
+
+    @Override
+    public MemoryGraphCleanupVO deleteUserGraph(String userId) {
+        String owner = safeUser(userId);
+        int deletedEdges = jdbcTemplate.update("DELETE FROM ai_memory_edge WHERE user_id = ?", owner);
+        int deletedNodes = jdbcTemplate.update("DELETE FROM ai_memory_node WHERE user_id = ?", owner);
+        return new MemoryGraphCleanupVO(deletedEdges, deletedNodes);
     }
 
     private MemoryGraphNodeVO upsertNode(String userId, String sessionId, NodeSpec node, String source) {

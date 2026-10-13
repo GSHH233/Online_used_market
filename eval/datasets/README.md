@@ -28,6 +28,8 @@ The original root-level dataset files were removed during cleanup, so these file
 - `ragas_rag_holdout_v4_manifest.json`: sealed Holdout v4 hash, one-run policy, frozen implementation hash, and immutable first-run result.
 - `ragas_rag_eval_dataset.json`: legacy compact RAGAS dataset retained for compatibility.
 - `memory_priority_eval_dataset.json`: L1/L2/L3 memory and memory graph evaluation cases.
+- `memory_quality_development_dataset.json`: MEM-06 five-layer memory development set, 48 cases across identity, update, negation, duplicate, recovery, and long-history categories.
+- `memory_quality_holdout_dataset.json`: MEM-06 independent holdout set, 24 cases. Run only after the development implementation is frozen.
 - `harness_eval_dataset.json`: Tool Execution Harness retry, timeout, fallback, snapshot, and permission cases.
 - `aiops_eval_dataset.json`: AIOps Agent, Prometheus, Graph, and permission cases.
 - `aiops_runbook_eval_dataset.json`: AIOps low-risk runbook auto-repair cases.
@@ -61,6 +63,9 @@ python tools/hybrid_planner_eval.py --base-url http://localhost:8080 --bearer-to
 .\.venv-ragas64\Scripts\python.exe tools/ragas_rag_eval.py --base-url http://localhost:8080 --bearer-token <JWT> --dataset eval/datasets/ragas_rag_development_v5_dataset.json --catalog eval/datasets/ragas_knowledge_catalog.json --out eval/reports/ragas_rag_development_v5_report.md --concurrency 2
 .\.venv-ragas64\Scripts\python.exe tools/ragas_release_freeze.py verify
 python tools/memory_priority_eval.py --base-url http://localhost:8080 --bearer-token <JWT>
+python tools/memory_quality_eval.py --base-url http://localhost:8080 --dataset eval/datasets/memory_quality_development_dataset.json
+# Freeze the implementation before the first holdout run:
+python tools/memory_quality_eval.py --base-url http://localhost:8080 --dataset eval/datasets/memory_quality_holdout_dataset.json
 python tools/harness_eval.py --base-url http://localhost:8080 --bearer-token <INTERNAL_JWT>
 python tools/aiops_eval.py --base-url http://localhost:8080 --bearer-token <INTERNAL_JWT>
 python tools/aiops_runbook_eval.py --base-url http://localhost:8080 --admin-bearer-token <ADMIN_JWT> --internal-bearer-token <INTERNAL_JWT> --user-bearer-token <USER_JWT> --doc-id 19
@@ -78,6 +83,7 @@ python tools/query_rewrite_eval.py --base-url http://localhost:8080 --bearer-tok
 - Rabbit ingestion cases currently cover local knowledge document ids `19-50`; update this range if your local DB changes.
 - Runbook execution cases use `${docId}` and `${runId}` templates. Pass `--doc-id <existingDocId>` when needed.
 - Regenerate the physical ingestion fixtures with `python tools/generate_knowledge_fixtures.py` after changing `ingestion_chunk_eval_dataset.json`.
+- Regenerate the reviewed MEM-06 datasets with `python tools/generate_memory_quality_datasets.py`; review Gold labels and freeze hashes before a holdout run.
 # Token 治理
 
 - `token_governance_eval_dataset.json`：验证场景预算、低优先级上下文裁剪、问题/证据保留与输出预算配置。

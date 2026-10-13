@@ -78,6 +78,7 @@ public class ChangeSpecialistAgent implements AiopsSpecialistAgent {
             attributes.put("service", service);
             attributes.put("from", from.toString());
             attributes.put("to", observedAt.toString());
+            attributes.put("findingCode", findingCode(rows));
             Evidence evidence = Evidence.observed(
                     EvidenceIds.forSpecialist(type(), context),
                     type(),
@@ -106,5 +107,22 @@ public class ChangeSpecialistAgent implements AiopsSpecialistAgent {
         return ex.getMessage() == null || ex.getMessage().isBlank()
                 ? ex.getClass().getSimpleName()
                 : ex.getMessage();
+    }
+
+    private String findingCode(List<Map<String, Object>> rows) {
+        String normalized = String.valueOf(rows).toLowerCase();
+        if (normalized.contains("database") || normalized.contains("schema")
+                || normalized.contains("migration") || normalized.contains("datasource")) {
+            return "DATABASE_CHANGE";
+        }
+        if (normalized.contains("frontend") || normalized.contains("css")
+                || normalized.contains("style")) {
+            return "FRONTEND_CHANGE";
+        }
+        if (normalized.contains("deploy") || normalized.contains("release")
+                || normalized.contains("version")) {
+            return "SERVICE_DEPLOY";
+        }
+        return "RECENT_CHANGE";
     }
 }

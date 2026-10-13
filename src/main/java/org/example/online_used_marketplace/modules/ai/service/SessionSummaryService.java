@@ -1,16 +1,17 @@
 package org.example.online_used_marketplace.modules.ai.service;
 
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
 import org.example.online_used_marketplace.modules.ai.vo.L3SessionSummaryVO;
 
 import java.util.Map;
 
 public interface SessionSummaryService {
 
-    String getSummary(String sessionId);
+    String getSummary(MemoryScope scope);
 
-    L3SessionSummaryVO getStructuredSummary(String sessionId);
+    L3SessionSummaryVO getStructuredSummary(MemoryScope scope);
 
-    Map<String, String> getAutofillParams(String sessionId);
+    Map<String, String> getAutofillParams(MemoryScope scope);
 
-    void refreshSummaryIfNeeded(String sessionId, String question, String answer);
+    void refreshSummaryIfNeeded(MemoryScope scope, String question, String answer);
 }

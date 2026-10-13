@@ -61,6 +61,20 @@ function statusTone(status?: string) {
   return 'running'
 }
 
+function statusLabel(status?: string) {
+  const labels: Record<string, string> = {
+    COMPLETED: '已完成',
+    SUCCESS: '已完成',
+    SUCCEEDED: '已完成',
+    RUNNING: '处理中',
+    FAILED: '处理失败',
+    REJECTED: '已拒绝',
+    ESCALATED: '已转人工',
+  }
+  const value = String(status || 'COMPLETED').toUpperCase()
+  return labels[value] || '待确认'
+}
+
 async function loadWorkspace() {
   try {
     const [operationData, documentData] = await Promise.all([
@@ -208,13 +222,12 @@ onMounted(loadWorkspace)
             <p class="eyebrow">排查结论</p>
             <h3>{{ result.success ? '已完成证据分析' : '需要进一步人工确认' }}</h3>
           </div>
-          <span class="status-label" :data-tone="statusTone(result.status)">{{ result.status || 'COMPLETED' }}</span>
+          <span class="status-label" :data-tone="statusTone(result.status)">{{ statusLabel(result.status) }}</span>
         </div>
         <p class="answer">{{ result.answer || '系统未生成结论。' }}</p>
         <div class="meta-row">
           <span>证据 {{ observations.length + sources.length }} 条</span>
           <span>耗时 {{ result.elapsedMs ?? '—' }} ms</span>
-          <span>链路 {{ result.traceId || '—' }}</span>
         </div>
       </section>
 
@@ -264,6 +277,7 @@ onMounted(loadWorkspace)
           <div><span>路由原因</span><strong>{{ result.routeReason || '根据问题复杂度自动选择' }}</strong></div>
           <div><span>步骤数量</span><strong>{{ result.agentTrace?.length || 0 }}</strong></div>
           <div><span>并行节点</span><strong>{{ result.graph?.length || 0 }}</strong></div>
+          <div><span>链路编号</span><strong>{{ result.traceId || '—' }}</strong></div>
         </div>
       </details>
     </template>

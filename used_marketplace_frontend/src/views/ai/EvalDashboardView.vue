@@ -24,6 +24,7 @@ const tasks = ref<KnowledgeTask[]>([])
 const operations = ref<ControlledOperation[]>([])
 const loading = ref(false)
 const error = ref('')
+const moduleErrors = ref<string[]>([])
 
 const reports = computed(() => dashboard.value?.recentReports || dashboard.value?.reports || [])
 const rawMetrics = computed<any[]>(() => dashboard.value?.metrics || dashboard.value?.latestMetrics || [])
@@ -71,6 +72,7 @@ const metricGroups = computed(() => [
     description: '建议是否真正帮助用户完成上架',
     icon: Sparkles,
     path: '/products/publish',
+    actionLabel: '体验发布助手',
     metrics: [
       { label: '使用次数', value: publishMetrics.value?.totalCount ?? publishMetrics.value?.assistCount ?? '—' },
       { label: '建议采纳率', value: formatRate(publishMetrics.value?.adoptionRate) },
@@ -82,6 +84,7 @@ const metricGroups = computed(() => [
     description: '规则能否被找到，并在证据不足时正确拒答',
     icon: BookOpenCheck,
     path: '/ai/knowledge?tab=gaps',
+    actionLabel: '处理知识缺口',
     metrics: [
       { label: 'Recall@5', value: formatRate(findMetric('recall@5', 'recall_at_5')) },
       { label: '拒答准确率', value: formatRate(findMetric('reject', '拒答')) },
@@ -93,6 +96,7 @@ const metricGroups = computed(() => [
     description: '文档从入库到三套检索存储的健康状态',
     icon: ClipboardCheck,
     path: '/ai/knowledge',
+    actionLabel: '管理知识文档',
     metrics: [
       { label: '有效文档', value: activeDocuments.value },
       { label: '失败任务', value: failedTasks.value },
@@ -104,6 +108,7 @@ const metricGroups = computed(() => [
     description: '排查任务是否闭环，修复动作是否受控',
     icon: Activity,
     path: '/ai/investigate',
+    actionLabel: '开始智能排查',
     metrics: [
       { label: '任务成功率', value: formatRate(findMetric('agent_success', 'success rate', '任务成功')) },
       { label: '待审批计划', value: pendingOperations.value },
@@ -115,6 +120,7 @@ const metricGroups = computed(() => [
 async function loadDashboard() {
   loading.value = true
   error.value = ''
+  moduleErrors.value = []
   const requests = await Promise.allSettled([
     aiApi.evalDashboard({ recentLimit: 20 }),
     knowledgeApi.gapMetrics(),
@@ -125,6 +131,10 @@ async function loadDashboard() {
     operationsApi.list({ limit: 100 }),
   ])
   const [dashboardResult, gapsResult, publishResult, aiopsResult, docsResult, tasksResult, operationsResult] = requests
+  const labels = ['工程指标', '知识缺口', '发布反馈', '排查时效', '知识文档', '入库任务', '受控计划']
+  moduleErrors.value = requests
+    .map((result, index) => result.status === 'rejected' ? `${labels[index]}暂不可用` : '')
+    .filter(Boolean)
   if (dashboardResult.status === 'fulfilled') dashboard.value = dashboardResult.value
   if (gapsResult.status === 'fulfilled') gapMetrics.value = gapsResult.value
   if (publishResult.status === 'fulfilled') publishMetrics.value = publishResult.value
@@ -156,6 +166,7 @@ onMounted(loadDashboard)
     </section>
 
     <p v-if="error" class="error">{{ error }}</p>
+    <p v-if="moduleErrors.length" class="partial-warning">部分数据加载失败：{{ moduleErrors.join('、') }}。其余指标仍可查看。</p>
 
     <section class="metric-groups" aria-label="核心业务指标">
       <article v-for="group in metricGroups" :key="group.title" class="metric-group">
@@ -173,7 +184,7 @@ onMounted(loadDashboard)
           </div>
         </div>
         <button type="button" @click="router.push(group.path)">
-          查看详情<ChevronRight :size="16" aria-hidden="true" />
+          {{ group.actionLabel }}<ChevronRight :size="16" aria-hidden="true" />
         </button>
       </article>
     </section>
@@ -214,6 +225,14 @@ onMounted(loadDashboard)
   display: inline-flex;
   gap: 7px;
   white-space: nowrap;
+}
+
+.partial-warning {
+  background: rgba(166, 104, 35, 0.08);
+  border-left: 3px solid #a66823;
+  color: #724819;
+  margin: 0;
+  padding: 10px 12px;
 }
 
 .metric-groups {

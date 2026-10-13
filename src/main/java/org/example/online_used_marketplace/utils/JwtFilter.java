@@ -18,6 +18,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 
 @Component
 @RequiredArgsConstructor
@@ -32,12 +34,25 @@ public class JwtFilter extends OncePerRequestFilter {
     @Value("${jwt.token-prefix}")
     private String tokenPrefix;
 
+    @Value("${app.monitoring.scrape-token:}")
+    private String scrapeToken;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
         String header = request.getHeader(tokenHeader);
         if (StringUtils.hasText(header) && header.startsWith(tokenPrefix + " ")) {
             String token = header.substring(tokenPrefix.length() + 1);
+            if ("GET".equals(request.getMethod())
+                    && (request.getContextPath() + "/actuator/prometheus").equals(request.getRequestURI())
+                    && StringUtils.hasText(scrapeToken)
+                    && MessageDigest.isEqual(token.getBytes(StandardCharsets.UTF_8),
+                            scrapeToken.getBytes(StandardCharsets.UTF_8))) {
+                SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(
+                        "prometheus-scraper", null, List.of(new SimpleGrantedAuthority("ROLE_MONITOR"))));
+                filterChain.doFilter(request, response);
+                return;
+            }
             try {
                 Long userId = jwtUtil.getUserId(token);
                 String username = jwtUtil.getUsername(token);

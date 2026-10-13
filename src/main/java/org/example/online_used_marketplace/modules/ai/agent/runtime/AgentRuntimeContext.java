@@ -26,6 +26,7 @@ public class AgentRuntimeContext {
     private Map<String, String> profilePreferences = new LinkedHashMap<>();
     private List<String> l1RecentMessages = new ArrayList<>();
     private List<String> l2MemoryLines = new ArrayList<>();
+    private Map<String, Object> l2RecallAudit = new LinkedHashMap<>();
     private List<String> graphMemoryLines = new ArrayList<>();
 
     private String promptBlock = "";

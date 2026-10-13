@@ -65,12 +65,16 @@ public class AiopsDiagnosisSupervisor {
         }
         evidence.addAll(uniqueEvidence.values());
         double confidence = calculateConfidence(availableSources.size(), evidence.size());
-        List<Hypothesis> hypotheses = buildHypotheses(context, evidence, confidence);
+        SignalAnalysis analysis = analyze(evidence, missingEvidence, degraded, availableSources.size());
+        List<Hypothesis> hypotheses = buildHypotheses(context, evidence, confidence, analysis);
         Diagnosis deterministic = Diagnosis.builder()
                 .evidence(evidence)
                 .missingEvidence(distinct(missingEvidence))
+                .conflictingEvidenceIds(analysis.conflictingEvidenceIds())
+                .followUpQuestions(analysis.followUpQuestions())
                 .rootCauseHypotheses(hypotheses)
                 .confidence(confidence)
+                .conclusionStatus(analysis.conclusionStatus())
                 .degraded(degraded || evidence.isEmpty())
                 .build();
         return applyOptionalEnhancement(context, deterministic);
@@ -138,37 +142,134 @@ public class AiopsDiagnosisSupervisor {
 
     private List<Hypothesis> buildHypotheses(AlertInvestigationContext context,
                                              List<Evidence> evidence,
-                                             double confidence) {
+                                             double confidence,
+                                             SignalAnalysis analysis) {
         if (evidence.isEmpty()) {
             return new ArrayList<>();
         }
-        List<String> evidenceIds = evidence.stream().map(Evidence::getEvidenceId).toList();
-        EnumSet<SpecialistType> sources = EnumSet.noneOf(SpecialistType.class);
-        evidence.forEach(item -> {
-            if (item.getSource() != null) {
-                sources.add(item.getSource());
-            }
-        });
-        String statement;
-        if (sources.contains(SpecialistType.METRICS) && sources.contains(SpecialistType.CHANGE)) {
-            statement = "指标异常与告警时间窗内的变更存在时序关联，优先核查变更影响";
-        } else if (sources.contains(SpecialistType.CHANGE)) {
-            statement = "告警时间窗内存在近期变更，可能与当前异常相关";
-        } else if (sources.contains(SpecialistType.METRICS)) {
-            statement = "指标源观测到与告警类型匹配的服务信号，需要结合独立验证确认根因";
-        } else {
-            statement = "结构化 trace 日志提供了当前事件的调查线索，但不足以单独确认根因";
-        }
+        String code = analysis.hypothesisCode();
+        String statement = analysis.statement();
         String suffix = context == null || context.getAlertName() == null
                 ? ""
                 : "（告警：" + context.getAlertName().trim() + "）";
         Hypothesis hypothesis = Hypothesis.builder()
-                .hypothesisId("hypothesis-1")
+                .hypothesisId(code)
                 .statement(statement + suffix)
                 .confidence(confidence)
-                .evidenceIds(new ArrayList<>(evidenceIds))
+                .evidenceIds(evidence.stream().map(Evidence::getEvidenceId).distinct().toList())
                 .build();
         return List.of(hypothesis);
+    }
+
+    private SignalAnalysis analyze(List<Evidence> evidence,
+                                   List<String> missingEvidence,
+                                   boolean degraded,
+                                   int sourceCount) {
+        Map<String, List<String>> idsByCode = new LinkedHashMap<>();
+        for (Evidence item : evidence) {
+            Object raw = item.getAttributes() == null ? null : item.getAttributes().get("findingCode");
+            String code = raw == null ? "" : String.valueOf(raw).trim().toUpperCase();
+            if (!code.isBlank()) {
+                idsByCode.computeIfAbsent(code, ignored -> new ArrayList<>()).add(item.getEvidenceId());
+            }
+        }
+        Set<String> codes = idsByCode.keySet();
+        boolean metricAbnormal = containsAny(codes, "LATENCY_HIGH", "ERROR_RATE_HIGH", "SERVICE_DOWN",
+                "RESOURCE_HIGH", "METRIC_ANOMALY");
+        boolean logProblem = containsAny(codes, "DB_TIMEOUT", "CONNECTION_REFUSED", "OOM", "APP_ERROR");
+        boolean normalConflict = (codes.contains("METRICS_NORMAL") && logProblem)
+                || (codes.contains("LOGS_NORMAL") && metricAbnormal);
+        boolean unrelatedChange = codes.contains("FRONTEND_CHANGE") && codes.contains("DB_TIMEOUT");
+        List<String> conflictingIds = new ArrayList<>();
+        if (normalConflict) {
+            addIds(conflictingIds, idsByCode, "METRICS_NORMAL", "LOGS_NORMAL", "LATENCY_HIGH",
+                    "ERROR_RATE_HIGH", "SERVICE_DOWN", "RESOURCE_HIGH", "METRIC_ANOMALY",
+                    "DB_TIMEOUT", "CONNECTION_REFUSED", "OOM", "APP_ERROR");
+        }
+        if (unrelatedChange) {
+            addIds(conflictingIds, idsByCode, "FRONTEND_CHANGE");
+        }
+
+        String hypothesisCode;
+        String statement;
+        if (normalConflict) {
+            hypothesisCode = "evidence_conflict";
+            statement = "指标与日志证据相互冲突，当前不能确认单一根因";
+        } else if (metricAbnormal && codes.contains("DB_TIMEOUT")
+                && containsAny(codes, "DATABASE_CHANGE", "SERVICE_DEPLOY")) {
+            hypothesisCode = "database_change_regression";
+            statement = "数据库超时与异常指标及近期后端变更在同一时间窗内相关";
+        } else if (codes.contains("SERVICE_DOWN") && codes.contains("CONNECTION_REFUSED")) {
+            hypothesisCode = "service_unavailable";
+            statement = "服务不可用指标与连接拒绝日志相互印证";
+        } else if (codes.contains("RESOURCE_HIGH") && codes.contains("OOM")) {
+            hypothesisCode = "resource_exhaustion";
+            statement = "资源异常指标与内存耗尽日志相互印证";
+        } else if (metricAbnormal && codes.contains("DB_TIMEOUT")) {
+            hypothesisCode = "database_dependency";
+            statement = "异常指标与数据库超时日志相互印证，优先检查数据库依赖";
+        } else if (metricAbnormal && codes.contains("APP_ERROR") && codes.contains("SERVICE_DEPLOY")) {
+            hypothesisCode = "deployment_regression";
+            statement = "应用错误与异常指标在近期服务发布后出现，优先核查发布回归";
+        } else if (metricAbnormal && containsAny(codes, "DATABASE_CHANGE", "SERVICE_DEPLOY", "RECENT_CHANGE")) {
+            hypothesisCode = "change_correlated_anomaly";
+            statement = "异常指标与近期变更存在时序关联，仍需日志证据确认因果";
+        } else if (metricAbnormal) {
+            hypothesisCode = "metric_signal_unconfirmed";
+            statement = "指标源发现异常信号，但缺少独立证据确认根因";
+        } else if (logProblem) {
+            hypothesisCode = "log_signal_unconfirmed";
+            statement = "日志发现异常信号，但缺少指标或变更证据确认影响范围";
+        } else {
+            hypothesisCode = "recent_change_unconfirmed";
+            statement = "时间窗内存在变更或调查线索，但不足以确认根因";
+        }
+
+        List<String> questions = new ArrayList<>();
+        List<String> missing = distinct(missingEvidence);
+        if (missing.stream().anyMatch(item -> item.contains("metrics"))) {
+            questions.add("能否补充相同时间窗的 Prometheus 指标？");
+        }
+        if (missing.stream().anyMatch(item -> item.contains("log") || item.contains("trace"))) {
+            questions.add("能否补充可关联的 traceId 或结构化错误日志？");
+        }
+        if (missing.stream().anyMatch(item -> item.contains("change"))) {
+            questions.add("告警前后是否存在后端发布、配置或数据库变更？");
+        }
+        if (normalConflict || unrelatedChange) {
+            questions.add("请确认各证据的服务、环境和时间窗口是否一致。");
+        }
+        if (sourceCount < 2 && questions.isEmpty()) {
+            questions.add("请补充至少一个独立证据源以验证当前假设。");
+        }
+        String status = evidence.isEmpty() ? "INSUFFICIENT"
+                : (degraded || sourceCount < 2 || normalConflict || unrelatedChange ? "PROVISIONAL" : "SUPPORTED");
+        return new SignalAnalysis(hypothesisCode, statement, status,
+                distinct(conflictingIds), distinct(questions));
+    }
+
+    private boolean containsAny(Set<String> values, String... candidates) {
+        for (String candidate : candidates) {
+            if (values.contains(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void addIds(List<String> target,
+                        Map<String, List<String>> idsByCode,
+                        String... codes) {
+        for (String code : codes) {
+            target.addAll(idsByCode.getOrDefault(code, List.of()));
+        }
+    }
+
+    private record SignalAnalysis(String hypothesisCode,
+                                  String statement,
+                                  String conclusionStatus,
+                                  List<String> conflictingEvidenceIds,
+                                  List<String> followUpQuestions) {
     }
 
     private List<String> distinct(List<String> values) {

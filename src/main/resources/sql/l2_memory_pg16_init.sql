@@ -1,5 +1,7 @@
--- PostgreSQL 16 初始化脚本：L2 持久记忆表
--- 建议库: used_market
+-- HISTORICAL / NON-DEFAULT ONLY.
+-- L2 memory now uses the primary MySQL datasource. Do not run this script from
+-- application startup. It is retained only to document the former PG layout.
+-- Memory Graph remains on PostgreSQL and is initialized by its own scripts.
 
 CREATE TABLE IF NOT EXISTS ai_l2_memory_record (
     id BIGSERIAL PRIMARY KEY,

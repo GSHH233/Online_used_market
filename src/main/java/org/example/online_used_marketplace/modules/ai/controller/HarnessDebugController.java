@@ -39,9 +39,18 @@ public class HarnessDebugController {
         if ("INTERNAL".equals(mode)) {
             ToolAccessGuard.requireInternal(mode, tool.name());
         }
-        ToolExecutionResult result = toolExecutionHarness.execute(tool,
-                request.getInput() == null ? Map.of() : request.getInput(),
-                mode);
+        Map<String, Object> input = request.getInput() == null ? Map.of() : request.getInput();
+        if ("profile".equals(tool.name())) {
+            String owner = ToolAccessGuard.requireAuthenticatedUserId().toString();
+            Object requested = input.get("userId");
+            if (requested != null && !owner.equals(String.valueOf(requested))) {
+                throw new BusinessException(ResultCode.FORBIDDEN, "不能查询其他用户的 Profile");
+            }
+            Map<String, Object> scopedInput = new LinkedHashMap<>(input);
+            scopedInput.put("userId", owner);
+            input = scopedInput;
+        }
+        ToolExecutionResult result = toolExecutionHarness.execute(tool, input, mode);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("tool", result.getTool());
         data.put("status", result.getStatus());

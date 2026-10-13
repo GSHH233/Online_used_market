@@ -11,5 +11,10 @@ scrape_configs:
   # Windows VMnet8 地址通常是 192.168.152.1；如果你的 VMnet8 地址变化，请同步修改。
   - job_name: online-used-marketplace
     metrics_path: /actuator/prometheus
+    # Mount a file containing PROMETHEUS_SCRAPE_TOKEN at this path.
+    # If MANAGEMENT_PORT is changed, update the target port below too.
+    authorization:
+      type: Bearer
+      credentials_file: /etc/prometheus/secrets/app-token
     static_configs:
       - targets: ['192.168.152.1:8080']

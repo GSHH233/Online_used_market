@@ -337,6 +337,8 @@ CREATE TABLE IF NOT EXISTS agent_runtime_run (
     run_id VARCHAR(128) NOT NULL UNIQUE,
     trace_id VARCHAR(128) NOT NULL,
     session_id VARCHAR(128) NOT NULL DEFAULT '',
+    owner_user_id VARCHAR(64) NOT NULL DEFAULT '',
+    owner_role VARCHAR(32) NOT NULL DEFAULT 'USER',
     strategy VARCHAR(32) NOT NULL DEFAULT 'DAG',
     status VARCHAR(32) NOT NULL DEFAULT 'CREATED',
     question TEXT NOT NULL DEFAULT '',
@@ -353,6 +355,8 @@ CREATE TABLE IF NOT EXISTS agent_runtime_run (
     finished_at TIMESTAMP
 );
 ALTER TABLE agent_runtime_run ADD COLUMN IF NOT EXISTS fault_after_nodes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE agent_runtime_run ADD COLUMN IF NOT EXISTS owner_user_id VARCHAR(64) NOT NULL DEFAULT '';
+ALTER TABLE agent_runtime_run ADD COLUMN IF NOT EXISTS owner_role VARCHAR(32) NOT NULL DEFAULT 'USER';
 CREATE INDEX IF NOT EXISTS idx_runtime_run_status_lease ON agent_runtime_run(status, lease_until);
 CREATE INDEX IF NOT EXISTS idx_runtime_run_trace ON agent_runtime_run(trace_id);
 
@@ -386,6 +390,22 @@ CREATE TABLE IF NOT EXISTS agent_runtime_checkpoint (
     UNIQUE(run_id, checkpoint_seq)
 );
 CREATE INDEX IF NOT EXISTS idx_runtime_checkpoint_run ON agent_runtime_checkpoint(run_id, checkpoint_seq DESC);
+
+CREATE TABLE IF NOT EXISTS agent_runtime_access_audit (
+    id BIGSERIAL PRIMARY KEY,
+    run_id VARCHAR(128) NOT NULL,
+    trace_id VARCHAR(128) NOT NULL DEFAULT '',
+    actor_user_id VARCHAR(64) NOT NULL DEFAULT '',
+    actor_role VARCHAR(32) NOT NULL DEFAULT 'USER',
+    action VARCHAR(64) NOT NULL,
+    decision VARCHAR(16) NOT NULL,
+    reason VARCHAR(500) NOT NULL DEFAULT '',
+    created_time TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_runtime_access_audit_run
+    ON agent_runtime_access_audit(run_id, created_time DESC);
+CREATE INDEX IF NOT EXISTS idx_runtime_access_audit_actor
+    ON agent_runtime_access_audit(actor_user_id, created_time DESC);
 
 CREATE OR REPLACE FUNCTION set_updated_time_ai_observability()
 RETURNS TRIGGER AS $$

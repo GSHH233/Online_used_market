@@ -46,9 +46,10 @@ public class HybridAgentPlanner {
         List<AgentPlanStep> ruleSteps = rulePlan(question, runtimeContext);
         if (llmEnabled && shouldUseModelPlanner(question, mode, ruleSteps)) {
             try {
-                LlmPlan llmPlan = modelPlan(question, mode, maxSteps, traceId);
+                LlmPlan llmPlan = modelPlan(question, mode, maxSteps, traceId, ruleSteps);
+                List<AgentPlanStep> constrainedSteps = constrainModelSteps(llmPlan.steps(), ruleSteps);
                 AgentPlan validated = validatedPlan(
-                        "LLM_STRUCTURED", llmPlan.reason(), false, llmPlan.steps(),
+                        "LLM_STRUCTURED", llmPlan.reason(), false, constrainedSteps,
                         question, runtimeContext, traceId, mode, maxSteps, ""
                 );
                 if (!validated.getSteps().isEmpty()) {
@@ -220,9 +221,15 @@ public class HybridAgentPlanner {
         return (sequencing || ambiguousDiagnosis) && ruleSteps.size() >= 2;
     }
 
-    private LlmPlan modelPlan(String question, String mode, int maxSteps, String traceId) throws Exception {
+    private LlmPlan modelPlan(String question,
+                              String mode,
+                              int maxSteps,
+                              String traceId,
+                              List<AgentPlanStep> ruleSteps) throws Exception {
+        Set<String> candidateTools = relevantToolNames(ruleSteps);
         String tools = toolRegistry.names().stream()
                 .filter(name -> !"harness_fault".equals(name))
+                .filter(candidateTools::contains)
                 .filter(name -> toolRegistry.find(name).map(tool -> allowed(tool, mode)).orElse(false))
                 .map(name -> toolRegistry.find(name)
                         .map(tool -> name + ": " + tool.description())
@@ -244,7 +251,7 @@ public class HybridAgentPlanner {
                 %s
                 User request:
                 %s
-                """.formatted(maxSteps, mode, tools, question);
+                """.formatted(Math.min(maxSteps, candidateTools.size()), mode, tools, question);
         String raw = chatGenerationService.generate(TokenGenerationRequest.builder()
                 .scene(TokenScene.AGENT_PLANNER)
                 .traceId(traceId)
@@ -273,6 +280,30 @@ public class HybridAgentPlanner {
 
     private AgentPlanStep step(String tool, String thought, Map<String, Object> input) {
         return new AgentPlanStep(tool, tool, thought, input, List.of());
+    }
+
+    private List<AgentPlanStep> constrainModelSteps(List<AgentPlanStep> proposed,
+                                                    List<AgentPlanStep> ruleSteps) {
+        Set<String> relevantTools = relevantToolNames(ruleSteps);
+        List<AgentPlanStep> constrained = new ArrayList<>();
+        for (AgentPlanStep step : proposed == null ? List.<AgentPlanStep>of() : proposed) {
+            if (step != null && relevantTools.contains(step.getTool())) {
+                constrained.add(step);
+            } else if (step != null && StringUtils.hasText(step.getTool())) {
+                log.info("structured planner ignored tool outside deterministic candidate set, tool={}", step.getTool());
+            }
+        }
+        return constrained;
+    }
+
+    private Set<String> relevantToolNames(List<AgentPlanStep> steps) {
+        Set<String> names = new LinkedHashSet<>();
+        for (AgentPlanStep step : steps == null ? List.<AgentPlanStep>of() : steps) {
+            if (step != null && StringUtils.hasText(step.getTool())) {
+                names.add(step.getTool());
+            }
+        }
+        return names;
     }
 
     private boolean isPrometheusIntent(String q) {

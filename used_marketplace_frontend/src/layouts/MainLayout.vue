@@ -37,6 +37,7 @@ const userMenus: MenuItem[] = [
   { path: '/market', label: '首页', icon: Home },
   { path: '/products', label: '逛商品', icon: Search },
   { path: '/products/publish', label: '发布', icon: PackagePlus },
+  { path: '/ai/rag-chat', label: '规则助手', icon: Bot },
   { path: '/orders', label: '订单', icon: ShoppingBag },
 ]
 
@@ -113,9 +114,6 @@ function logout() {
           <button class="icon-btn" type="button" title="我的收藏" aria-label="我的收藏" @click="go('/favorites')">
             <Heart :size="19" aria-hidden="true" />
           </button>
-          <button class="icon-btn" type="button" title="交易问答" aria-label="交易问答" @click="go('/ai/rag-chat')">
-            <Bot :size="19" aria-hidden="true" />
-          </button>
           <button v-if="auth.isInternal" class="console-btn" type="button" @click="go('/ai/eval-dashboard')">
             <Boxes :size="17" aria-hidden="true" /> 运营后台
           </button>
@@ -147,7 +145,6 @@ function logout() {
           <component :is="item.icon" :size="18" aria-hidden="true" />{{ item.label }}
         </button>
         <button type="button" @click="go('/favorites')"><Heart :size="18" />我的收藏</button>
-        <button type="button" @click="go('/ai/rag-chat')"><Bot :size="18" />交易问答</button>
         <button v-if="auth.isInternal" type="button" @click="go('/ai/eval-dashboard')"><Boxes :size="18" />运营后台</button>
       </div>
     </header>
@@ -494,7 +491,7 @@ function logout() {
     border-top: 1px solid var(--line);
     bottom: 0;
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     left: 0;
     padding: 7px 6px max(7px, env(safe-area-inset-bottom));
     position: fixed;

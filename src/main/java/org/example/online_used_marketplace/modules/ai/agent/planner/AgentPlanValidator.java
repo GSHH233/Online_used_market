@@ -55,6 +55,11 @@ public class AgentPlanValidator {
                 warnings.add("ignored non-production tool=harness_fault");
                 continue;
             }
+            if ("profile".equals(toolName)
+                    && (runtimeContext == null || !StringUtils.hasText(runtimeContext.getUserId()))) {
+                warnings.add("ignored profile tool without authenticated owner");
+                continue;
+            }
             if (tool.internalOnly() && !"INTERNAL".equalsIgnoreCase(mode)) {
                 // Keep the step so the executor emits an explicit DENIED observation and audit trace.
                 warnings.add("internal tool will be denied by executor in USER mode=" + toolName);

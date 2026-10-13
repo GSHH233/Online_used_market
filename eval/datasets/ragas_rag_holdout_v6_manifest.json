@@ -1,0 +1,23 @@
+{
+  "requirementId": "QUALITY-AC-003",
+  "dataset": "eval/datasets/ragas_rag_holdout_v6_dataset.json",
+  "datasetRole": "HOLDOUT_BLIND",
+  "caseCount": 30,
+  "frozenAt": "2026-09-21T16:02:00+08:00",
+  "firstExposedAt": "2026-09-21T16:08:09+08:00",
+  "sha256": "9f4322f5734a7751375c7f9591ae8c28d5e3b3e7a29efa02f0a9291bc202f7ee",
+  "catalog": {
+    "path": "eval/datasets/ragas_knowledge_catalog.json",
+    "sha256": "30bae5fdf7a30415ebc7bd925108ac733977622de0c5afb3e10d1f7a3dc3455a"
+  },
+  "implementation": {
+    "gitCommit": "aad83cde52579d2ee8a93663564b428d548849ff",
+    "ragChatServiceSha256": "79bab56432dd92cb19a7a1cdf859264e7628028cc032034d107031587d4e325b"
+  },
+  "evaluation": {
+    "topK": 5,
+    "concurrency": 2,
+    "judgeEnabled": false,
+    "status": "EXPOSED_RISK"
+  }
+}

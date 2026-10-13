@@ -1,12 +1,24 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import { aiApi } from '../api/modules/ai'
 import { buildWebSocketUrl } from '../api/request'
+import { useAuthStore } from './auth'
 
 type ChatMessage = { role: 'user' | 'assistant' | 'system'; content: string }
 type WsStatus = 'IDLE' | 'CONNECTING' | 'OPEN' | 'CLOSED'
+const conversationStorageKey = 'ai-rag-conversation-id'
+
+function currentConversationId(): string {
+  let id = sessionStorage.getItem(conversationStorageKey)
+  if (!id) {
+    id = crypto.randomUUID()
+    sessionStorage.setItem(conversationStorageKey, id)
+  }
+  return id
+}
 
 export const useAiChatStore = defineStore('aiChat', () => {
+  const auth = useAuthStore()
   const messages = ref<ChatMessage[]>([])
   const sources = ref<any[]>([])
   const currentTraceId = ref('')
@@ -21,6 +33,7 @@ export const useAiChatStore = defineStore('aiChat', () => {
   const fallbackReason = ref('')
   let socket: WebSocket | null = null
   let connecting: Promise<void> | null = null
+  let connectionEpoch = 0
 
   async function runEval(payload: any) {
     const data = (await aiApi.ragEval(payload)) as any
@@ -51,23 +64,35 @@ export const useAiChatStore = defineStore('aiChat', () => {
     wsStatus.value = 'CONNECTING'
 
     connecting = new Promise((resolve, reject) => {
+      const epoch = ++connectionEpoch
       socket = new WebSocket(buildWebSocketUrl('/ws/ai/rag-chat'))
 
       socket.onopen = () => {
+        if (epoch !== connectionEpoch) {
+          reject(new Error('登录状态已变化，请重新连接'))
+          return
+        }
         wsStatus.value = 'OPEN'
         connecting = null
         resolve()
       }
       socket.onclose = () => {
+        if (epoch !== connectionEpoch) {
+          reject(new Error('连接已关闭'))
+          return
+        }
         wsStatus.value = 'CLOSED'
         connecting = null
+        reject(new Error('连接已关闭'))
       }
       socket.onerror = () => {
+        if (epoch !== connectionEpoch) return
         wsStatus.value = 'CLOSED'
         connecting = null
         reject(new Error('WebSocket 连接失败'))
       }
       socket.onmessage = (e) => {
+        if (epoch !== connectionEpoch) return
         const msg = JSON.parse(e.data)
         wsEvents.value.unshift(msg)
         if (msg.type === 'CHAT_ACK') currentTraceId.value = msg.requestId
@@ -98,6 +123,13 @@ export const useAiChatStore = defineStore('aiChat', () => {
     const question = String(payload.question || '').trim()
     if (!question) return
 
+    // Read the token at send time so an existing socket can be reused after
+    // logout/login without carrying the previous user's identity.
+    const token = String(auth.token || '').trim()
+    if (!token) {
+      throw new Error('请先登录后再使用聊天功能')
+    }
+
     await connectWs()
     const requestId = payload.requestId || `ws-rag-${Date.now()}`
     currentTraceId.value = requestId
@@ -116,6 +148,8 @@ export const useAiChatStore = defineStore('aiChat', () => {
       ...payload,
       question,
       requestId,
+      token,
+      conversationId: currentConversationId(),
     })
   }
 
@@ -131,11 +165,23 @@ export const useAiChatStore = defineStore('aiChat', () => {
   }
 
   function closeWs() {
+    connectionEpoch++
     socket?.close()
     socket = null
     connecting = null
     wsStatus.value = 'CLOSED'
   }
+
+  watch(() => auth.token, () => {
+    closeWs()
+    sessionStorage.removeItem(conversationStorageKey)
+    messages.value = []
+    sources.value = []
+    wsEvents.value = []
+    rawPayload.value = null
+    currentTraceId.value = ''
+    isStreaming.value = false
+  })
 
   return {
     messages,

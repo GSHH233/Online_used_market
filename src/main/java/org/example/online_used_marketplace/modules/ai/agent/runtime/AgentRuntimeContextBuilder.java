@@ -3,6 +3,9 @@ package org.example.online_used_marketplace.modules.ai.agent.runtime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.online_used_marketplace.modules.ai.service.ConversationMemoryService;
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
+import org.example.online_used_marketplace.modules.ai.memory.L2MemoryRecallQuery;
+import org.example.online_used_marketplace.modules.ai.memory.L2MemoryRecallResult;
 import org.example.online_used_marketplace.modules.ai.service.L2MemoryService;
 import org.example.online_used_marketplace.modules.ai.service.MemoryGraphService;
 import org.example.online_used_marketplace.modules.ai.service.SessionSummaryService;
@@ -11,10 +14,6 @@ import org.example.online_used_marketplace.modules.ai.vo.L2MemoryHitVO;
 import org.example.online_used_marketplace.modules.ai.vo.MemoryGraphEdgeVO;
 import org.example.online_used_marketplace.modules.ai.vo.MemoryGraphNodeVO;
 import org.example.online_used_marketplace.modules.ai.vo.UserProfileVO;
-import org.example.online_used_marketplace.modules.user.entity.UserPrincipal;
-import org.example.online_used_marketplace.modules.user.enums.UserRole;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -34,6 +33,7 @@ public class AgentRuntimeContextBuilder {
     private static final int L1_LIMIT = 6;
     private static final int L2_TOP_K = 4;
     private static final double L2_THRESHOLD = 0.3D;
+    private static final int L2_CANDIDATE_LIMIT = 1000;
     private static final int GRAPH_LIMIT = 8;
     private static final int MAX_BLOCK_CHARS = 3200;
     private static final int MAX_LINE_CHARS = 180;
@@ -50,10 +50,22 @@ public class AgentRuntimeContextBuilder {
                                      String mode,
                                      String question,
                                      int maxSteps) {
-        String normalizedSessionId = safe(sessionId, "anonymous");
-        String normalizedMode = "INTERNAL".equalsIgnoreCase(mode) ? "INTERNAL" : "USER";
-        String userId = resolveUserId(normalizedSessionId);
-        String role = resolveRole(normalizedMode);
+        return build(agentType, sessionId, traceId, mode, question, maxSteps, AgentExecutionIdentity.current());
+    }
+
+    public AgentRuntimeContext build(String agentType,
+                                     String sessionId,
+                                     String traceId,
+                                     String mode,
+                                     String question,
+                                     int maxSteps,
+                                     AgentExecutionIdentity identity) {
+        String normalizedSessionId = safe(sessionId, "");
+        AgentExecutionIdentity trustedIdentity = identity == null ? AgentExecutionIdentity.anonymous() : identity;
+        MemoryScope scope = trustedIdentity.scope(normalizedSessionId);
+        String userId = scope == null ? "" : scope.userId();
+        String role = trustedIdentity.role();
+        String normalizedMode = trustedIdentity.effectiveMode(mode);
 
         AgentRuntimeContext context = new AgentRuntimeContext();
         context.setAgentType(safe(agentType, "agent"));
@@ -66,22 +78,27 @@ public class AgentRuntimeContextBuilder {
         context.setMaxSteps(maxSteps);
         context.setContextId(buildContextId(agentType, normalizedSessionId, traceId, question));
 
-        String l3Summary = safeGet(() -> sessionSummaryService.getSummary(normalizedSessionId), "l3Summary", "");
-        Map<String, String> l3Autofill = safeGet(() -> sessionSummaryService.getAutofillParams(normalizedSessionId), "l3Autofill", Map.of());
-        UserProfileVO profile = safeGet(() -> userProfileService.buildProfile(userId, normalizedSessionId), "profile", null);
+        String l3Summary = scope == null ? "" : safeGet(() -> sessionSummaryService.getSummary(scope), "l3Summary", "");
+        Map<String, String> l3Autofill = scope == null ? Map.of() : safeGet(() -> sessionSummaryService.getAutofillParams(scope), "l3Autofill", Map.of());
+        UserProfileVO profile = scope == null ? null : safeGet(() -> userProfileService.buildProfile(userId, normalizedSessionId), "profile", null);
         Map<String, String> profilePreferences = profile == null
                 ? Map.of()
                 : safeGet(() -> userProfileService.toPreferenceMap(profile), "profilePreferences", Map.of());
         String profileBlock = profile == null ? "" : safe(profile.getPromptBlock(), "");
 
-        List<String> l1Recent = safeGet(() -> conversationMemoryService.getRecentMessages(normalizedSessionId, L1_LIMIT), "l1Recent", List.of());
-        List<String> l2Lines = safeGet(() -> l2MemoryService.retrieve(userId, normalizedSessionId, safe(question, ""), L2_TOP_K, L2_THRESHOLD)
-                        .stream()
-                        .map(this::formatL2Memory)
-                        .filter(StringUtils::hasText)
-                        .toList(),
-                "l2Retrieve", List.of());
-        List<String> graphLines = buildGraphMemoryLines(userId);
+        List<String> l1Recent = scope == null ? List.of() : safeGet(() -> conversationMemoryService.getRecentMessages(scope, L1_LIMIT), "l1Recent", List.of());
+        L2MemoryRecallResult l2Recall = scope == null
+                ? L2MemoryRecallResult.empty(L2_CANDIDATE_LIMIT, "EMPTY", "NO_AUTHENTICATED_SCOPE")
+                : safeGet(() -> l2MemoryService.recall(new L2MemoryRecallQuery(
+                                userId, normalizedSessionId, safe(question, ""), List.of(),
+                                L2_TOP_K, L2_THRESHOLD, L2_CANDIDATE_LIMIT, false)),
+                        "l2Recall", L2MemoryRecallResult.empty(
+                                L2_CANDIDATE_LIMIT, "EMPTY", "RECALL_ERROR"));
+        List<String> l2Lines = l2Recall.hits().stream()
+                .map(this::formatL2Memory)
+                .filter(StringUtils::hasText)
+                .toList();
+        List<String> graphLines = scope == null ? List.of() : buildGraphMemoryLines(userId);
 
         context.setL3Summary(l3Summary);
         context.setL3AutofillParams(new LinkedHashMap<>(l3Autofill));
@@ -89,6 +106,7 @@ public class AgentRuntimeContextBuilder {
         context.setProfilePreferences(new LinkedHashMap<>(profilePreferences));
         context.setL1RecentMessages(new ArrayList<>(l1Recent));
         context.setL2MemoryLines(new ArrayList<>(l2Lines));
+        context.setL2RecallAudit(buildL2RecallAudit(l2Recall));
         context.setGraphMemoryLines(new ArrayList<>(graphLines));
 
         String promptBlock = buildPromptBlock(context);
@@ -171,8 +189,27 @@ public class AgentRuntimeContextBuilder {
         metadata.put("profileFields", context.getProfilePreferences().size());
         metadata.put("l1Count", context.getL1RecentMessages().size());
         metadata.put("l2Count", context.getL2MemoryLines().size());
+        metadata.put("l2Recall", new LinkedHashMap<>(context.getL2RecallAudit()));
         metadata.put("graphCount", context.getGraphMemoryLines().size());
         return metadata;
+    }
+
+    private Map<String, Object> buildL2RecallAudit(L2MemoryRecallResult recall) {
+        Map<String, Object> audit = new LinkedHashMap<>();
+        audit.put("retrievalMode", recall.retrievalMode());
+        audit.put("fallbackReason", recall.fallbackReason());
+        audit.put("eligibleCandidateCount", recall.eligibleCandidateCount());
+        audit.put("evaluatedCandidateCount", recall.evaluatedCandidateCount());
+        audit.put("candidateLimit", recall.candidateLimit());
+        audit.put("candidateTruncated", recall.candidateTruncated());
+        audit.put("adoptedMemoryIds", recall.adoptedMemoryIds());
+        audit.put("excluded", recall.exclusions().stream()
+                .map(item -> Map.of(
+                        "memoryId", item.memoryId() == null ? "" : item.memoryId(),
+                        "memoryType", safe(item.memoryType(), ""),
+                        "reason", safe(item.reason(), "")))
+                .toList());
+        return audit;
     }
 
     private String formatL2Memory(L2MemoryHitVO hit) {
@@ -183,23 +220,6 @@ public class AgentRuntimeContextBuilder {
                 + "|score=" + formatDouble(hit.getScore())
                 + "|importance=" + formatDouble(hit.getImportanceScore())
                 + "] " + compact(hit.getContent(), MAX_LINE_CHARS);
-    }
-
-    private String resolveUserId(String fallbackSessionId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal
-                && principal.getUserId() != null) {
-            return String.valueOf(principal.getUserId());
-        }
-        return fallbackSessionId;
-    }
-
-    private String resolveRole(String fallbackMode) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        if (authentication != null && authentication.getPrincipal() instanceof UserPrincipal principal) {
-            return UserRole.normalize(principal.getRole());
-        }
-        return UserRole.normalize(fallbackMode);
     }
 
     private String buildContextId(String agentType, String sessionId, String traceId, String question) {

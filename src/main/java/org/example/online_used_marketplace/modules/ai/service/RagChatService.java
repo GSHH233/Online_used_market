@@ -1,6 +1,7 @@
 package org.example.online_used_marketplace.modules.ai.service;
 
 import org.example.online_used_marketplace.modules.ai.dto.KnowledgeSearchFilterDTO;
+import org.example.online_used_marketplace.modules.ai.memory.MemoryScope;
 import org.example.online_used_marketplace.modules.ai.vo.WsChatDoneVO;
 
 /**
@@ -11,7 +12,7 @@ import org.example.online_used_marketplace.modules.ai.vo.WsChatDoneVO;
  * @Version:
  */
 public interface RagChatService {
-    WsChatDoneVO chat(String sessionId, String question, String traceId,Integer topK, KnowledgeSearchFilterDTO filter);
+    WsChatDoneVO chat(MemoryScope scope, String question, String traceId, Integer topK, KnowledgeSearchFilterDTO filter);
 
     /**
      * Isolated evaluation path: executes retrieval and answer generation without
@@ -19,6 +20,6 @@ public interface RagChatService {
      */
     default WsChatDoneVO chatForEvaluation(String sessionId, String question, String traceId,
                                            Integer topK, KnowledgeSearchFilterDTO filter) {
-        return chat(sessionId, question, traceId, topK, filter);
+        throw new UnsupportedOperationException("Evaluation path must not write private memory");
     }
 }
