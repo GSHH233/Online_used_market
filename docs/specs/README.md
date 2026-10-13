@@ -20,7 +20,7 @@
 | [收尾前端合同](./frontend-closure-contract.md) | IMPLEMENTED_PENDING_EVAL | 页面、路由、字段、角色和状态 |
 | [最终验收追踪表](./final-acceptance-traceability.md) | ACTIVE | Spec、代码、评测和人工证据关联 |
 | [最终验收运行手册](../SPEC_ACCEPTANCE_RUNBOOK.md) | ACTIVE | 11 个验收批次、命令、人工步骤与签字规则 |
-| [GitHub 交付](./github-delivery.md) | PREPARED_PENDING_PUSH | README、文档整理、外部备份、示例配置、CI 与独立发布树验证 |
+| [GitHub 交付](./github-delivery.md) | PUBLISHED_PENDING_LIVE_ACCEPTANCE | 文档与配置整理、外部备份、构建验证及普通推送完成；真实运行另验 |
 | [企业级RAG入库切片与Query Rewrite](./enterprise-rag-ingestion-query-rewrite.md) | IMPLEMENTED_PENDING_EVAL | 多格式解析、结构化语义切片、动态多路改写与加权融合 |
 | [前端产品叙事收口](./frontend-product-narrative-consolidation.md) | IMPLEMENTED_PENDING_LIVE_ACCEPTANCE | 三条产品主链、角色菜单收口与技术能力下沉 |
 | [Token 治理 MVP](./token-governance-mvp.md) | IMPLEMENTED_PENDING_EVAL | 场景预算、优先级裁剪、Usage 审计与量化评测 |

@@ -1044,3 +1044,12 @@ P2P 多 Agent、全量框架迁移、通用语义 compaction、图像理解、�
 - [~] 当前 8080 未运行；真实 MySQL 双买家并发、MinIO 上传、Redis TTL/进程恢复、Prometheus 抓取和浏览器联调待应用重启后执行，未冒充已通过。
 - [~] 本地提交后事件仍可能在进程崩溃时丢失，监听也仍同步执行；outbox/持久重试需另立迁移和补偿设计。
 - [ ] Flyway、根 Compose、RAG 类拆分、全量分包与目录迁移留作独立阶段。历史 PG L2 脚本不能加入默认 PG 初始化；本轮没有删除个人文档、测试资产或操作既有数据库/容器。
+
+## 22. 2026-10-13 GitHub 整理与上传
+
+- [x] 清理前建立项目快照和完整 Git bundle；11 个个人简历、面试学习、毕业选题及无关演示文件移至项目外备份，移动前后 SHA-256 一致。远端旧版本个人材料也另存备份，没有丢弃。
+- [x] 新增 docs/README.md 文档入口；保留真实开发记录、Spec、核心解析、业务评测脚本和数据集；原始日志、报告、依赖与产物排除上传。
+- [x] 本机 application-idea.yml 留在原项目，公开仓库交付 application-idea.example.yml；原 application.yml 与 IDEA 配置和备份哈希一致。
+- [x] 从远端最新 51cf1b4 建立独立发布目录。公开提交 e22cfa9 已普通推送至 GitHub master，未覆盖远端历史。
+- [x] 发布目录完整 Maven 310 条、308 通过、2 跳过；前端 npm ci 后构建、JAR 打包、Python 编译和冻结数据集校验通过；token-like 扫描 0 命中。
+- [~] 真实基础设施、API 与浏览器验收不因上传完成而自动签字；Holdout v6 的 RISK 与未启用 Judge 的边界保留。

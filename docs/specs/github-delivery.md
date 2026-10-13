@@ -1,6 +1,6 @@
 # GitHub 交付收尾 Spec
 
-状态：`PREPARED_PENDING_PUSH`
+状态：`PUBLISHED_PENDING_LIVE_ACCEPTANCE`
 范围：README、架构图、启动脚本、演示数据和公开仓库检查
 
 ## 1. 目标
@@ -112,4 +112,4 @@ GitHub 收尾不新增业务框架，不引入 LangChain/LangGraph，不迁移�
 - 原始评测报告、临时文件、运行日志、依赖缓存和构建产物排除；RAG 最新首次 Holdout v6 的 RISK 结论保留在公开摘要。
 - 基于远端最新提交建立独立发布目录，不覆盖原工作区配置，也不强制推送。
 - 发布目录验证：Java 310 条，308 通过、2 跳过；前端 npm ci 后构建通过；Python 编译与冻结数据集结构校验通过；token-like 扫描 0 命中。
-- GitHub 推送与远端 commit 回读为最后步骤；真实服务与浏览器验收仍保留待验收状态。
+- 已普通推送代码整理提交 `e22cfa9` 至 `GSHH233/Online_used_market` 的 master，保留远端已有历史。后端 JAR 打包通过；真实服务与浏览器验收仍保留待验收状态。
